@@ -1,148 +1,26 @@
-"use client";
+import { prisma } from "@/lib/db";
+import { EmailWriter } from "@/components/email/EmailWriter";
+import { RecentItems } from "@/components/RecentItems";
 
-import { useState, type ReactNode } from "react";
-import { Square } from "lucide-react";
-import { toast } from "sonner";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-import { useAiTool } from "@/hooks/useAiTool";
-import { AiOutput } from "@/components/tools/AiOutput";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+export default async function EmailWriterPage() {
+  const rows = await prisma.emailDraft
+    .findMany({ orderBy: { createdAt: "desc" }, take: 20 })
+    .catch(() => []);
 
-const TONES = ["neutral", "formal", "friendly", "direct", "warm", "apologetic"];
-
-export default function EmailWriterPage() {
-  const [mode, setMode] = useState("compose");
-  const [tone, setTone] = useState("friendly");
-  const [length, setLength] = useState("medium");
-  const [brief, setBrief] = useState("");
-  const [sourceText, setSourceText] = useState("");
-
-  const { output, status, error, isRunning, run, stop } = useAiTool({
-    endpoint: "/api/email",
-    buildBody: (_i, extra) => ({
-      mode,
-      tone,
-      length,
-      brief,
-      sourceText,
-      save: Boolean(extra?.save),
-    }),
-  });
-
-  async function handleRun(save: boolean) {
-    if (!brief.trim()) {
-      toast.error("Add a brief — what should the email say?");
-      return;
-    }
-    const ok = await run("", { save });
-    if (ok && save) toast.success("Draft saved");
-  }
+  const drafts = rows.map((d) => ({
+    id: d.id,
+    title: d.title || "Untitled draft",
+    badges: [d.mode, d.tone, d.length],
+    body: d.body,
+  }));
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold">✉️ Email Writer</h1>
-      <p className="mt-1 text-muted-foreground">Compose or reply to emails with local Gemma.</p>
-
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Field label="Mode">
-          <Select value={mode} onValueChange={setMode}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="compose">Compose</SelectItem>
-              <SelectItem value="reply">Reply</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Tone">
-          <Select value={tone} onValueChange={setTone}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TONES.map((t) => (
-                <SelectItem key={t} value={t}>
-                  {t}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Length">
-          <Select value={length} onValueChange={setLength}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="short">Short</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="long">Long</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-
-      {mode === "reply" && (
-        <div className="mt-4 space-y-1.5">
-          <Label htmlFor="source">Email you&apos;re replying to</Label>
-          <Textarea
-            id="source"
-            rows={5}
-            value={sourceText}
-            onChange={(e) => setSourceText(e.target.value)}
-            placeholder="Paste the email you received…"
-            disabled={isRunning}
-          />
-        </div>
-      )}
-
-      <div className="mt-4 space-y-1.5">
-        <Label htmlFor="brief">Brief — what should it say?</Label>
-        <Textarea
-          id="brief"
-          rows={4}
-          value={brief}
-          onChange={(e) => setBrief(e.target.value)}
-          placeholder="e.g. Ask for a 2-day extension on the report, apologize for the delay, propose Thursday."
-          disabled={isRunning}
-        />
-      </div>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button onClick={() => handleRun(false)} disabled={isRunning || !brief.trim()}>
-          {isRunning ? "Writing…" : "Write"}
-        </Button>
-        <Button variant="outline" onClick={() => handleRun(true)} disabled={isRunning || !brief.trim()}>
-          Write &amp; save
-        </Button>
-        {isRunning && (
-          <Button variant="ghost" onClick={stop}>
-            <Square className="mr-1 h-4 w-4" /> Stop
-          </Button>
-        )}
-      </div>
-
-      {error && <p className="mt-4 text-sm text-destructive">⚠ {error}</p>}
-      <AiOutput output={output} status={status} label="Draft" />
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      {children}
+      <EmailWriter />
+      <RecentItems heading="Recent drafts" items={drafts} deleteBase="/api/email" />
     </div>
   );
 }
