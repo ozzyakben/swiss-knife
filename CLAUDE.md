@@ -50,7 +50,7 @@ The tag is **`gemma4:12b-mlx`** (MLX build, Apple-Silicon native; dense 12B with
 - ✅ Phase 0: engine. ✅ Phase 1: cockpit skeleton + Prompt Optimizer.
 - ✅ Foundation: model-tag fix, git, shadcn + dark mode, streaming AI-tool kit, settings + health, ESLint + Playwright.
 - ✅ Phase 2: shared template engine + seed (`prisma/seed.mjs`, `npm run db:seed`); Prompt Library (CRUD, search, favorite, variable templates, export/import); Email Writer; Brainstorming (technique modes). Open WebUI prompt sync still deferred until OWUI runs.
-- ⬜ Phase 3: todo + Kanban (one `Task` model: list + dnd-kit board)
+- ✅ Phase 3: tasks — one `Task` model as a list + dnd-kit Kanban board; AI assists (goal→tasks, daily standup).
 - ⬜ Phase 4: knowledge base (Open WebUI RAG, deep-link) · memory facts · PDF (Open WebUI) · image input (Gemma vision)
 - ⬜ Phase 5: clipboard quick-capture (macOS Shortcut) · screenshots · project hub
 

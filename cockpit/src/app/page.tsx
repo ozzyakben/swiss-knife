@@ -11,6 +11,7 @@ const TOOLS = [
   { href: "/tools/prompt-library", title: "📚 Prompt Library", desc: "Saved prompts + variable templates." },
   { href: "/tools/email-writer", title: "✉️ Email Writer", desc: "Compose and reply with the right tone." },
   { href: "/tools/brainstorm", title: "💡 Brainstorming", desc: "Structured thinking techniques." },
+  { href: "/tools/tasks", title: "✅ Tasks", desc: "List + Kanban with AI assists." },
 ];
 
 export default async function Dashboard() {
@@ -52,7 +53,7 @@ export default async function Dashboard() {
             <CardTitle className="text-base text-muted-foreground">📥 Coming next</CardTitle>
           </CardHeader>
           <CardContent className="text-sm text-muted-foreground">
-            Todo · Kanban · Knowledge base
+            Knowledge base · Project hub
           </CardContent>
         </Card>
       </div>
