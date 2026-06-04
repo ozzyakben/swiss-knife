@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 
@@ -14,23 +13,10 @@ import {
 
 export function ThemeToggle() {
   const { setTheme } = useTheme();
-  const [mounted, setMounted] = React.useState(false);
 
-  // next-themes resolves the theme on the client; render a stable placeholder
-  // until mounted to avoid a hydration mismatch on the icon.
-  React.useEffect(() => setMounted(true), []);
-
-  if (!mounted) {
-    return (
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8"
-        aria-label="Toggle theme"
-      />
-    );
-  }
-
+  // The icons are driven by the `dark:` CSS class (set on <html>), not by the
+  // JS theme value, so this renders identically on server and client — no
+  // hydration mismatch and no mounted guard needed.
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
