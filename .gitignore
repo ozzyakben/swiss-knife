@@ -16,6 +16,9 @@ next-env.d.ts
 cockpit/uploads/
 uploads/
 
+# project packs — local/internal project data (e.g. LBMH = ECI IP); never commit
+cockpit/projects/
+
 # env & secrets
 .env
 .env.local
