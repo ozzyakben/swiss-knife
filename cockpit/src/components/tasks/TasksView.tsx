@@ -271,6 +271,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
 
         <TabsContent value="board" className="mt-4">
           <DndContext
+            id="task-board"
             sensors={sensors}
             collisionDetection={closestCorners}
             onDragStart={onDragStart}
