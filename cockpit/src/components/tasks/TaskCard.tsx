@@ -50,6 +50,11 @@ export function TaskCard({
         <div className="min-w-0 flex-1">
           <p className="text-sm">{task.title}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {task.module && (
+              <Badge variant="outline" className="border-primary/40 text-[10px] font-medium">
+                {task.module}
+              </Badge>
+            )}
             <Badge variant={PRIORITY_VARIANT[task.priority]} className="text-[10px]">
               {task.priority}
             </Badge>

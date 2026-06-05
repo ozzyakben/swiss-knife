@@ -16,6 +16,7 @@ export default async function TasksPage() {
     id: t.id,
     title: t.title,
     notes: t.notes,
+    module: t.module,
     status: t.status as Task["status"],
     priority: t.priority as Task["priority"],
     dueDate: t.dueDate ? t.dueDate.toISOString() : null,

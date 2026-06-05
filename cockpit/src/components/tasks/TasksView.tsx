@@ -43,6 +43,7 @@ export type Task = {
   priority: Priority;
   dueDate: string | null;
   order: number;
+  module: string | null;
   projectName?: string | null;
 };
 
