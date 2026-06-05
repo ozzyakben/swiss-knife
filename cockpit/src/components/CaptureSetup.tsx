@@ -72,8 +72,31 @@ export function CaptureSetup() {
         </pre>
       </div>
 
+      <details className="text-sm text-muted-foreground" open>
+        <summary className="cursor-pointer">macOS Shortcut — easiest (Run Shell Script)</summary>
+        <ol className="ml-4 mt-2 list-decimal space-y-1">
+          <li>Open Shortcuts → File → New Shortcut.</li>
+          <li>
+            Add a “Run Shell Script” action and set it to:{" "}
+            <code className="rounded bg-muted px-1">
+              bash &quot;&lt;repo&gt;/scripts/sk-capture.sh&quot;
+            </code>{" "}
+            (the script fetches this token itself, so nothing secret is stored in the Shortcut).
+          </li>
+          <li>Name it “Capture to Swiss Knife”.</li>
+          <li>
+            Shortcut details (sidebar) → Add Keyboard Shortcut → pick a hotkey (e.g. ⌃⌥⌘C).
+          </li>
+          <li>Copy any text, press the hotkey → it files as a task (you’ll get a notification).</li>
+        </ol>
+        <p className="ml-4 mt-1 text-xs">
+          Capture a fact/prompt/idea instead by passing a 2nd arg, e.g.{" "}
+          <code className="rounded bg-muted px-1">bash &quot;…/sk-capture.sh&quot; &quot;&quot; fact</code>.
+        </p>
+      </details>
+
       <details className="text-sm text-muted-foreground">
-        <summary className="cursor-pointer">macOS Shortcut — capture selected text</summary>
+        <summary className="cursor-pointer">macOS Shortcut — capture selected text (no script)</summary>
         <ol className="ml-4 mt-2 list-decimal space-y-1">
           <li>Open Shortcuts and create a new shortcut (or Quick Action that receives text).</li>
           <li>
