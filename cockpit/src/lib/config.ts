@@ -6,9 +6,10 @@ export const DEFAULTS = {
   model: process.env.OLLAMA_MODEL ?? "gemma4:e4b",
   baseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434/v1",
   temperature: 0.4,
-  // Image input needs a vision-capable model. The light default (e4b) is
-  // text-only, so vision routes use this instead of the chat model.
-  visionModel: process.env.OLLAMA_VISION_MODEL ?? "gemma4:12b-mlx",
+  // The vision-capable model. gemma4:e4b advertises vision and works via the
+  // native /api image path; gemma4:12b-mlx has NO vision. Pinned here so vision
+  // keeps working even if the chat default is switched to a text-only model.
+  visionModel: process.env.OLLAMA_VISION_MODEL ?? "gemma4:e4b",
 };
 
 export type EffectiveConfig = {

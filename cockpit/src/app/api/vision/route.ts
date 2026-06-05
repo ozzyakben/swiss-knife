@@ -1,7 +1,8 @@
 import { assertOllamaReady } from "@/lib/health";
-import { streamTextResponse } from "@/lib/ai/streamRoute";
-import { visionMessages } from "@/lib/vision";
+import { streamChatWithImages } from "@/lib/ollama";
 import { getEffectiveConfig } from "@/lib/config";
+import { DEFAULT_VISION_PROMPT } from "@/lib/vision";
+import { ERROR_SENTINEL } from "@/lib/ai/sentinel";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,37 @@ export async function POST(req: Request) {
     return Response.json({ error: "Attach an image first." }, { status: 400 });
   }
 
-  // Use a vision-capable model, not the (possibly text-only) chat default.
-  const { visionModel } = await getEffectiveConfig();
-  return streamTextResponse({ messages: visionMessages(image, prompt), model: visionModel });
+  // Use the vision-capable model via the native image API (not the chat default,
+  // which may be text-only; not the /v1 path, which fails for GGUF vision).
+  const { baseUrl, temperature, visionModel } = await getEffectiveConfig();
+  const text = prompt?.trim() || DEFAULT_VISION_PROMPT;
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const token of streamChatWithImages(text, [image], {
+          model: visionModel,
+          baseUrl,
+          temperature,
+        })) {
+          controller.enqueue(encoder.encode(token));
+        }
+        controller.close();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "vision failed";
+        controller.enqueue(encoder.encode(`\n${ERROR_SENTINEL} ${msg}`));
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      "X-Content-Type-Options": "nosniff",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
