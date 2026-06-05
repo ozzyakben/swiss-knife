@@ -215,8 +215,8 @@ export function PromptLibrary({
                   return;
                 }
                 toast.success(
-                  `Synced ${data.synced} prompt(s)` +
-                    (data.skipped ? `, skipped ${data.skipped}` : "")
+                  `Synced ${data.synced} prompt(s): ${data.created} new, ${data.updated} updated` +
+                    (data.failed ? `, ${data.failed} failed` : "")
                 );
               }}
             >
