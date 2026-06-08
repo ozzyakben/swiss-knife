@@ -229,6 +229,53 @@ export async function learnFromText(args: {
 }
 
 /**
+ * Opt-in auto-capture: run the loop over the project's recent activity (ideas,
+ * QA stories, task notes) instead of a pasted note. Bounded and reviewable —
+ * everything it finds lands in the pending queue. Returns the loop result plus
+ * how many activity items were scanned.
+ */
+export async function learnFromActivity(
+  projectId: string | null
+): Promise<LearnResult & { sources: number }> {
+  const scope = projectId ? { OR: [{ projectId: null }, { projectId }] } : {};
+  const [ideas, sessions, tasks] = await Promise.all([
+    prisma.idea.findMany({
+      where: scope,
+      orderBy: { createdAt: "desc" },
+      take: 15,
+      select: { topic: true, content: true },
+    }),
+    prisma.qaSession.findMany({
+      where: scope,
+      orderBy: { updatedAt: "desc" },
+      take: 10,
+      select: { title: true, story: true },
+    }),
+    prisma.task.findMany({
+      where: { ...scope, NOT: { notes: null } },
+      orderBy: { updatedAt: "desc" },
+      take: 15,
+      select: { title: true, notes: true },
+    }),
+  ]);
+
+  const blocks: string[] = [];
+  for (const i of ideas) blocks.push(`Idea — ${i.topic}:\n${i.content}`);
+  for (const s of sessions) blocks.push(`QA story — ${s.title}:\n${s.story}`);
+  for (const t of tasks) blocks.push(`Task — ${t.title}: ${t.notes}`);
+  const sources = blocks.length;
+  if (sources === 0) return { created: 0, merges: 0, skipped: 0, candidates: [], sources: 0 };
+
+  // Bound the text fed to extraction so a large history stays a cheap 4B call.
+  const CAP = 6000;
+  let text = blocks.join("\n\n");
+  if (text.length > CAP) text = text.slice(0, CAP);
+
+  const res = await learnFromText({ text, projectId });
+  return { ...res, sources };
+}
+
+/**
  * Backfill categories on facts that have none (e.g. seeded-pack facts that
  * predate the taxonomy). Additive only — never overwrites an existing category,
  * and validates every label against the fixed set. Scoped to a project + global

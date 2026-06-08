@@ -15,6 +15,7 @@ import {
   Search,
   ArchiveRestore,
   Tags,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -111,6 +112,7 @@ export function MemoryManager({
   const [search, setSearch] = useState("");
   const [reindexing, setReindexing] = useState(false);
   const [classifying, setClassifying] = useState(false);
+  const [activityBusy, setActivityBusy] = useState(false);
 
   // Inline edit (one fact at a time).
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -234,6 +236,24 @@ export function MemoryManager({
     }
   }
 
+  async function learnActivity() {
+    setActivityBusy(true);
+    try {
+      const res = await fetch("/api/memory/learn-activity", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      const parts = [`${data.created} new`];
+      if (data.merges) parts.push(`${data.merges} merge`);
+      if (data.skipped) parts.push(`${data.skipped} dup`);
+      toast.success(`From ${data.sources} recent item(s): ${parts.join(", ")} — review below`);
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setActivityBusy(false);
+    }
+  }
+
   async function classify() {
     setClassifying(true);
     try {
@@ -323,6 +343,10 @@ export function MemoryManager({
         </Button>
         <Button variant="outline" onClick={() => setSuggestOpen(true)}>
           <Sparkles className="mr-1 h-4 w-4" /> Suggest from text
+        </Button>
+        <Button variant="outline" onClick={learnActivity} disabled={activityBusy} title="Capture facts from your recent ideas, QA sessions, and task notes">
+          <History className="mr-1 h-4 w-4" />
+          {activityBusy ? "Scanning…" : "From activity"}
         </Button>
         <Button variant="outline" onClick={reindex} disabled={reindexing} title="Embed facts so they can be ranked by relevance">
           <RefreshCw className={"mr-1 h-4 w-4 " + (reindexing ? "animate-spin" : "")} />

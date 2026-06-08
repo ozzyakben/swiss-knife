@@ -7,6 +7,7 @@ test.describe("memory loop", () => {
     await page.goto("/tools/memory");
     await expect(page.getByRole("heading", { name: /memory/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /suggest from text/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /from activity/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /reindex/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /classify/i })).toBeVisible();
     await expect(page.getByPlaceholder(/search facts/i)).toBeVisible();
