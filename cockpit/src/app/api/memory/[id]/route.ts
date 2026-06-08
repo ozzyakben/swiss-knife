@@ -1,9 +1,10 @@
 import { prisma } from "@/lib/db";
+import { applyMerge } from "@/lib/memoryLoop";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const STATUS = ["active", "pending", "dismissed"];
+const STATUS = ["active", "pending", "dismissed", "archived"];
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -13,6 +14,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     value?: string;
     key?: string;
   };
+
+  // Accepting a merge proposal applies the consolidated wording to the surviving
+  // active fact and drops the proposal. This is the only path that edits an
+  // existing active fact, and it runs only on an explicit accept.
+  if (body.status === "active") {
+    const fact = await prisma.memoryFact
+      .findUnique({ where: { id }, select: { id: true, value: true, mergedIntoId: true } })
+      .catch(() => null);
+    if (fact?.mergedIntoId) {
+      try {
+        await applyMerge(fact.id, fact.mergedIntoId, fact.value);
+        return Response.json({ merged: true, targetId: fact.mergedIntoId });
+      } catch {
+        return Response.json({ error: "Merge target no longer exists." }, { status: 404 });
+      }
+    }
+  }
 
   const data: Record<string, unknown> = {};
   if (STATUS.includes(body.status ?? "")) data.status = body.status;

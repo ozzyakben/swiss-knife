@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
   const cfg = await getEffectiveConfig();
   const projectId = await getActiveProjectId();
-  const memory = await getMemoryContext({ projectId });
+  const memory = await getMemoryContext({ projectId, query: goal.trim() });
 
   const text = await chat(
     [

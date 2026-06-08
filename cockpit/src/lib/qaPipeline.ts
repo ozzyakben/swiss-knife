@@ -100,7 +100,7 @@ export async function draftFromStory(
   ctx: QaContext
 ): Promise<string> {
   if (!ctx.gherkinTemplate) throw new Error("QA pack not loaded for this project.");
-  const memory = await getMemoryContext({ projectId });
+  const memory = await getMemoryContext({ projectId, query: story });
   // The story drives the template's `behavior`; module/examples map to "".
   const instruction = renderTemplate(ctx.gherkinTemplate.body, { behavior: story });
   const raw = await chat(withMemory(memory, instruction), await chatOpts());
@@ -119,7 +119,7 @@ export async function draftFromFollowUp(
   ctx: QaContext
 ): Promise<string> {
   if (!ctx.gherkinTemplate) throw new Error("QA pack not loaded for this project.");
-  const memory = await getMemoryContext({ projectId });
+  const memory = await getMemoryContext({ projectId, query: `${story}\n${instruction}` });
   const standards = renderTemplate(ctx.gherkinTemplate.body, { behavior: story });
   const prompt = `${standards}
 
@@ -143,7 +143,7 @@ export async function scoreFeature(
   ctx: QaContext
 ): Promise<RubricScore> {
   if (!ctx.rubricTemplate) throw new Error("QA pack not loaded for this project.");
-  const memory = await getMemoryContext({ projectId });
+  const memory = await getMemoryContext({ projectId, query: draftFeature });
   const instruction = renderTemplate(ctx.rubricTemplate.body, { artifact: draftFeature });
   const raw = await chat(withMemory(memory, instruction), await chatOpts());
   return { raw: raw.trim(), verdict: parseVerdict(raw) };

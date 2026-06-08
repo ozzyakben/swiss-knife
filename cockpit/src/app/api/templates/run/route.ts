@@ -43,6 +43,7 @@ export async function POST(req: Request) {
   return streamTextResponse({
     injectMemory: true,
     memoryProjectId: effectiveProjectId,
+    memoryQuery: subject || rendered,
     messages: [{ role: "user", content: rendered }],
     onComplete: save
       ? async (full) => {

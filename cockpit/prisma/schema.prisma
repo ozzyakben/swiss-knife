@@ -122,23 +122,38 @@ model Task {
   @@index([module])
 }
 
-// Phase 4: lightweight memory facts (manual + AI-suggested), injected into prompts.
+// Phase 4 + 7: lightweight memory facts (manual + AI-suggested), injected into
+// prompts. Phase 7 ("memory loop") adds: a category, an embedding for relevance
+// ranking + dedupe, decay counters, and a self-relation tracking consolidation
+// lineage (a merged-away candidate points at the fact that absorbed it).
 model MemoryFact {
-  id        String   @id @default(cuid())
-  key       String?
-  value     String
-  source    String   @default("manual") // manual | ai
-  status    String   @default("active") // active | pending | dismissed
-  pinned    Boolean  @default(false)
-  sourceKey String?  @unique // stable key for idempotent project-pack seeding
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(cuid())
+  key        String?
+  value      String
+  source     String    @default("manual") // manual | ai
+  status     String    @default("active") // active | pending | dismissed | archived
+  pinned     Boolean   @default(false)
+  category   String? // glossary | preference | standard | constraint | workflow | person | project | general
+  embedding  String? // JSON-encoded number[] from embeddinggemma; null until indexed
+  useCount   Int       @default(0) // times injected into a tool prompt (decay signal)
+  lastUsedAt DateTime? // last time this fact was injected (decay signal)
+  sourceKey  String?   @unique // stable key for idempotent project-pack seeding
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Consolidation lineage. A pending candidate that would merge into an existing
+  // fact carries mergedIntoId = that fact's id (the merge is only applied on
+  // human accept, so the active fact is never silently edited).
+  mergedIntoId String?
+  mergedInto   MemoryFact?  @relation("FactMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom   MemoryFact[] @relation("FactMerge")
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([status])
+  @@index([category])
 }
 
 // Phase 6: project-scoped QA pipeline (Story → Gherkin → lint → rubric).

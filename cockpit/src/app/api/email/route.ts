@@ -46,6 +46,7 @@ export async function POST(req: Request) {
   return streamTextResponse({
     injectMemory: true,
     memoryProjectId: projectId,
+    memoryQuery: brief.trim(),
     messages: [
       { role: "system", content: system },
       { role: "user", content: parts.join("\n") },

@@ -199,3 +199,34 @@ export async function* streamChatWithImages(
     reader.releaseLock();
   }
 }
+
+// ── Embeddings ─────────────────────────────────────────────────────────────────
+// Vector embeddings come from the NATIVE /api/embed endpoint (not /v1), which
+// takes a string or an array of strings and returns one vector per input. The
+// embedding model (e.g. embeddinggemma) is distinct from the chat model, so
+// callers pass it explicitly via opts.model.
+
+function nativeEmbedUrl(baseUrl?: string) {
+  return `${(baseUrl ?? BASE).replace(/\/v1\/?$/, "")}/api/embed`;
+}
+
+/** Embed one or more inputs. Always returns a vector-per-input array, in order. */
+export async function embed(
+  input: string | string[],
+  opts: ChatOptions = {}
+): Promise<number[][]> {
+  const res = await fetch(nativeEmbedUrl(opts.baseUrl), {
+    method: "POST",
+    headers: HEADERS,
+    body: JSON.stringify({ model: opts.model ?? "embeddinggemma", input }),
+    cache: "no-store",
+    signal: opts.signal,
+  });
+  if (!res.ok) {
+    throw new Error(`Ollama embed error ${res.status}: ${await res.text().catch(() => "")}`);
+  }
+  const data = await res.json();
+  const out = data?.embeddings;
+  if (!Array.isArray(out)) throw new Error("Ollama embed: no embeddings in response");
+  return out as number[][];
+}

@@ -10,6 +10,9 @@ export const DEFAULTS = {
   // native /api image path; gemma4:12b-mlx has NO vision. Pinned here so vision
   // keeps working even if the chat default is switched to a text-only model.
   visionModel: process.env.OLLAMA_VISION_MODEL ?? "gemma4:e4b",
+  // The embedding model for memory relevance ranking + dedupe. Distinct from the
+  // chat model; pulled by scripts/pull-models.sh and also used by Open WebUI RAG.
+  embeddingModel: process.env.OLLAMA_EMBED_MODEL ?? "embeddinggemma",
 };
 
 export type EffectiveConfig = {
@@ -17,6 +20,7 @@ export type EffectiveConfig = {
   baseUrl: string;
   temperature: number;
   visionModel: string;
+  embeddingModel: string;
 };
 
 /** Settings row over env over defaults. Safe before the table is migrated. */
@@ -33,5 +37,6 @@ export async function getEffectiveConfig(): Promise<EffectiveConfig> {
     baseUrl: row?.baseUrl ?? DEFAULTS.baseUrl,
     temperature: row?.temperature ?? DEFAULTS.temperature,
     visionModel: DEFAULTS.visionModel,
+    embeddingModel: DEFAULTS.embeddingModel,
   };
 }

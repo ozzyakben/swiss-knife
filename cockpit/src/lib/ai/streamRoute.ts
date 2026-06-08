@@ -17,6 +17,8 @@ type StreamTextArgs = {
   injectMemory?: boolean;
   /** Scope injected memory to this project's facts (plus global). Resolve in handler scope. */
   memoryProjectId?: string | null;
+  /** Relevance anchor: rank injected facts against this text (else recency). */
+  memoryQuery?: string | null;
 };
 
 export function streamTextResponse({
@@ -26,6 +28,7 @@ export function streamTextResponse({
   onComplete,
   injectMemory,
   memoryProjectId,
+  memoryQuery,
 }: StreamTextArgs): Response {
   const encoder = new TextEncoder();
 
@@ -36,7 +39,10 @@ export function streamTextResponse({
         const cfg = await getEffectiveConfig();
         let msgs = messages;
         if (injectMemory) {
-          const mem = await getMemoryContext({ projectId: memoryProjectId ?? null });
+          const mem = await getMemoryContext({
+            projectId: memoryProjectId ?? null,
+            query: memoryQuery ?? null,
+          });
           if (mem) msgs = [{ role: "system", content: mem }, ...messages];
         }
         for await (const token of streamChat(msgs, {
