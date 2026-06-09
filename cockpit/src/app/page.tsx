@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { HealthBanner } from "@/components/HealthBanner";
+import { DailyBrief } from "@/components/DailyBrief";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const runtime = "nodejs";
@@ -41,7 +42,12 @@ export default async function Dashboard() {
         <HealthBanner />
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-6">
+        <DailyBrief />
+      </div>
+
+      <h2 className="mt-8 text-sm font-medium text-muted-foreground">Tools</h2>
+      <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
         {TOOLS.map((t) => (
           <Link key={t.href} href={t.href}>
             <Card className="h-full transition-shadow hover:shadow-sm">
