@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/db";
 import { assertOllamaReady } from "@/lib/health";
 import {
@@ -115,6 +117,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ sessio
 // DELETE — remove the session (iterations cascade).
 export async function DELETE(_req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params;
-  await prisma.qaSession.delete({ where: { id: sessionId } }).catch(() => null);
-  return Response.json({ ok: true });
+  try {
+    await prisma.qaSession.delete({ where: { id: sessionId } });
+    return Response.json({ ok: true });
+  } catch (e) {
+    // Already gone is an idempotent success; a real DB error is not (don't claim
+    // the delete worked when it didn't — the sibling routes do the same).
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
+      return Response.json({ ok: true });
+    }
+    return Response.json({ error: "Couldn't delete the session." }, { status: 500 });
+  }
 }

@@ -83,15 +83,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 // DELETE — remove one iteration. If it was the last one, drop the session too.
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const it = await prisma.qaIteration
-    .delete({ where: { id }, select: { sessionId: true } })
-    .catch(() => null);
-  if (!it) return Response.json({ ok: true, sessionDeleted: false });
+  let sessionId: string;
+  try {
+    const it = await prisma.qaIteration.delete({ where: { id }, select: { sessionId: true } });
+    sessionId = it.sessionId;
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
+      return Response.json({ error: "Iteration not found." }, { status: 404 });
+    }
+    return Response.json({ error: "Couldn't delete the iteration." }, { status: 500 });
+  }
 
-  const remaining = await prisma.qaIteration.count({ where: { sessionId: it.sessionId } });
+  const remaining = await prisma.qaIteration.count({ where: { sessionId } });
   if (remaining === 0) {
-    await prisma.qaSession.delete({ where: { id: it.sessionId } }).catch(() => null);
-    return Response.json({ ok: true, sessionDeleted: true });
+    // Last iteration removed → drop the now-empty session. Only claim
+    // sessionDeleted:true if it actually succeeded.
+    try {
+      await prisma.qaSession.delete({ where: { id: sessionId } });
+      return Response.json({ ok: true, sessionDeleted: true });
+    } catch {
+      return Response.json({ ok: true, sessionDeleted: false });
+    }
   }
   return Response.json({ ok: true, sessionDeleted: false });
 }

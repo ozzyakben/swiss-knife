@@ -128,11 +128,16 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
       next[status] = [...next[status], { ...task, status }];
       return next;
     });
-    await fetch(`/api/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    }).catch(() => {});
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error("Couldn't update the task — reload to resync.");
+    }
   }
 
   async function persist(next: Board) {
@@ -141,11 +146,16 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
       doing: next.doing.map((t) => t.id),
       done: next.done.map((t) => t.id),
     };
-    await fetch("/api/tasks/reorder", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ columns }),
-    }).catch(() => {});
+    try {
+      const res = await fetch("/api/tasks/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ columns }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error("Couldn't save the new order — reload to resync.");
+    }
   }
 
   // ---- drag and drop ----

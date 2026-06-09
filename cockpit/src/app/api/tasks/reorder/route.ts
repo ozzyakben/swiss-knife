@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -17,21 +19,26 @@ export async function POST(req: Request) {
     return Response.json({ error: "Expected { columns }." }, { status: 400 });
   }
 
-  const updates: Promise<unknown>[] = [];
+  const updates: Prisma.PrismaPromise<unknown>[] = [];
   for (const status of STATUSES) {
     const ids = Array.isArray(columns[status]) ? columns[status] : [];
     ids.forEach((id, index) => {
       updates.push(
-        prisma.task
-          .update({
-            where: { id },
-            data: { status, order: index, completedAt: status === "done" ? new Date() : null },
-          })
-          .catch(() => null)
+        prisma.task.update({
+          where: { id },
+          data: { status, order: index, completedAt: status === "done" ? new Date() : null },
+        })
       );
     });
   }
-  await Promise.all(updates);
 
-  return Response.json({ ok: true });
+  // Atomic: the whole board layout commits or none of it does. A failed write
+  // (e.g. a task deleted elsewhere) now surfaces as a 500 instead of a silent
+  // partial save reported as success — the client resyncs from the DB.
+  try {
+    await prisma.$transaction(updates);
+    return Response.json({ ok: true });
+  } catch {
+    return Response.json({ error: "Couldn't save the board layout." }, { status: 500 });
+  }
 }

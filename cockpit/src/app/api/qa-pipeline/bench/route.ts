@@ -24,10 +24,17 @@ export async function POST() {
   const results: { id: string; expected: string; got: string; agree: boolean; story: string }[] = [];
   let agree = 0;
   for (const c of cases) {
-    const rubric = await scoreFeature(c.draftFeature, projectId, ctx);
-    const ok = rubric.verdict === c.expectedVerdict;
+    // One failing case (engine hiccup) must not 500 the whole bench and discard
+    // every other case's result — record it as a non-agreeing ERROR and continue.
+    let got = "ERROR";
+    try {
+      got = (await scoreFeature(c.draftFeature, projectId, ctx)).verdict;
+    } catch {
+      got = "ERROR";
+    }
+    const ok = got === c.expectedVerdict;
     if (ok) agree += 1;
-    results.push({ id: c.id, expected: c.expectedVerdict, got: rubric.verdict, agree: ok, story: c.story.slice(0, 70) });
+    results.push({ id: c.id, expected: c.expectedVerdict, got, agree: ok, story: c.story.slice(0, 70) });
   }
 
   return Response.json({
