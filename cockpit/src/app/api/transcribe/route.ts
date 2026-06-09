@@ -1,17 +1,20 @@
 import { spawn } from "node:child_process";
 import { writeFile, unlink, readFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { existsSync } from "node:fs";
+import { tmpdir, homedir } from "node:os";
 import { join } from "node:path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // On-device speech-to-text. Needs whisper.cpp (whisper-cli) + ffmpeg installed
-// natively (no cloud). Both are configurable via env. If a tool is missing the
-// route returns a 503 with the install command, so the feature is ready the
-// moment you run `brew install whisper-cpp ffmpeg`.
+// natively (no cloud). Binary paths and the model are configurable via env. If a
+// tool or the model is missing the route returns a 503 with the fix command, so
+// the feature is ready the moment you run `brew install whisper-cpp ffmpeg` and
+// download a model.
 const WHISPER = process.env.WHISPER_BIN || "whisper-cli";
 const FFMPEG = process.env.FFMPEG_BIN || "ffmpeg";
+const WHISPER_MODEL = process.env.WHISPER_MODEL || join(homedir(), ".cache/whisper/ggml-base.en.bin");
 
 type RunResult = { code: number | null; stdout: string; stderr: string };
 
@@ -64,9 +67,18 @@ export async function POST(req: Request) {
     }
 
     // 2) Transcribe on-device with whisper.cpp.
+    if (!existsSync(WHISPER_MODEL)) {
+      return Response.json(
+        {
+          error: `No whisper model at ${WHISPER_MODEL}. Download one: curl -L -o "${WHISPER_MODEL}" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin`,
+          reason: "no-model",
+        },
+        { status: 503 }
+      );
+    }
     let res: RunResult;
     try {
-      res = await run(WHISPER, ["-f", wavPath, "-nt", "-otxt", "-of", base]);
+      res = await run(WHISPER, ["-m", WHISPER_MODEL, "-f", wavPath, "-nt", "-otxt", "-of", base]);
     } catch (e) {
       if (isMissing(e)) {
         return Response.json(
