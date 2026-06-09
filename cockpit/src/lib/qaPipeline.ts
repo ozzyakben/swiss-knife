@@ -64,7 +64,7 @@ export async function loadProjectQaContext(projectId: string | null): Promise<Qa
       select: { id: true, body: true },
     }),
     projectId
-      ? prisma.memoryFact.count({ where: { projectId, status: "active" } })
+      ? prisma.memoryFact.count({ where: { projectId, status: "active", deletedAt: null } })
       : Promise.resolve(0),
   ]);
 

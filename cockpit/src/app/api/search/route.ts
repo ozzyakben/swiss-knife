@@ -45,7 +45,7 @@ export async function GET(req: Request) {
       .catch(() => []),
     prisma.memoryFact
       .findMany({
-        where: { status: "active", OR: [{ key: { contains: q } }, { value: { contains: q } }] },
+        where: { status: "active", deletedAt: null, OR: [{ key: { contains: q } }, { value: { contains: q } }] },
         take,
         orderBy: { updatedAt: "desc" },
         select: { id: true, key: true, value: true },

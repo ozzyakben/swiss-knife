@@ -66,6 +66,7 @@ export async function rankFacts(opts: {
     rows = await prisma.memoryFact.findMany({
       where: {
         status: "active",
+        deletedAt: null,
         OR: [{ projectId: null }, ...(opts.projectId ? [{ projectId: opts.projectId }] : [])],
       },
       orderBy: [{ pinned: "desc" }, { createdAt: "asc" }],

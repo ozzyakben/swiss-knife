@@ -91,12 +91,16 @@ function CategoryBadge({ category }: { category: string | null }) {
   );
 }
 
+export type TrashedFact = { id: string; key: string | null; value: string; projectName: string | null };
+
 export function MemoryManager({
   facts,
+  trashed,
   projects,
   activeProjectId,
 }: {
   facts: Fact[];
+  trashed: TrashedFact[];
   projects: { id: string; name: string }[];
   activeProjectId: string | null;
 }) {
@@ -125,6 +129,25 @@ export function MemoryManager({
   const [previewBusy, setPreviewBusy] = useState(false);
 
   const [showArchived, setShowArchived] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
+
+  async function restore(id: string) {
+    const res = await fetch(`/api/memory/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ restore: true }),
+    });
+    if (!res.ok) return toast.error("Failed");
+    toast.success("Restored");
+    router.refresh();
+  }
+
+  async function purge(id: string) {
+    const res = await fetch(`/api/memory/${id}?purge=true`, { method: "DELETE" });
+    if (!res.ok) return toast.error("Failed");
+    toast.success("Deleted permanently");
+    router.refresh();
+  }
 
   const inFilter = (f: Fact) =>
     filterProject === ALL ||
@@ -698,6 +721,58 @@ export function MemoryManager({
                       className="h-7 w-7"
                       aria-label="Delete fact"
                       onClick={() => remove(f.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {trashed.length > 0 && (
+        <div className="mt-8">
+          <button
+            className="text-sm font-medium text-muted-foreground hover:text-foreground"
+            onClick={() => setShowTrash((s) => !s)}
+          >
+            Trash ({trashed.length}) {showTrash ? "▾" : "▸"}
+          </button>
+          {showTrash && (
+            <div className="mt-2 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Deleted facts are kept here until you remove them permanently.
+              </p>
+              {trashed.map((f) => (
+                <Card key={f.id}>
+                  <CardContent className="flex items-center gap-3 py-3">
+                    <span className="flex-1 text-sm text-muted-foreground line-through">
+                      {f.key ? `${f.key}: ` : ""}
+                      {f.value}
+                    </span>
+                    {f.projectName && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {f.projectName}
+                      </Badge>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      aria-label="Restore fact"
+                      onClick={() => restore(f.id)}
+                    >
+                      <ArchiveRestore className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive"
+                      aria-label="Delete forever"
+                      title="Delete forever"
+                      onClick={() => purge(f.id)}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

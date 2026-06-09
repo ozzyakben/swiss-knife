@@ -13,7 +13,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     pinned?: boolean;
     value?: string;
     key?: string;
+    restore?: boolean;
   };
+
+  // Restore from Trash: clear the soft-delete marker.
+  if (body.restore) {
+    try {
+      const fact = await prisma.memoryFact.update({ where: { id }, data: { deletedAt: null } });
+      return Response.json({ fact });
+    } catch {
+      return Response.json({ error: "Fact not found." }, { status: 404 });
+    }
+  }
 
   // Accepting a merge proposal applies the consolidated wording to the surviving
   // active fact and drops the proposal. This is the only path that edits an
@@ -50,10 +61,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+// Soft-delete by default (moves to Trash, restorable). `?purge=true` removes it
+// permanently — used by the Trash "delete forever" action.
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const purge = new URL(req.url).searchParams.get("purge") === "true";
   try {
-    await prisma.memoryFact.delete({ where: { id } });
+    if (purge) {
+      await prisma.memoryFact.delete({ where: { id } });
+    } else {
+      await prisma.memoryFact.update({ where: { id }, data: { deletedAt: new Date() } });
+    }
     return Response.json({ ok: true });
   } catch {
     return Response.json({ error: "Fact not found." }, { status: 404 });

@@ -64,13 +64,13 @@ export async function DailyBrief() {
       .catch(() => [] as TaskLite[]),
     prisma.memoryFact
       .findMany({
-        where: { ...scope, status: "pending" },
+        where: { ...scope, status: "pending", deletedAt: null },
         orderBy: { createdAt: "desc" },
         take: 3,
         select: { id: true, key: true, value: true },
       })
       .catch(() => [] as { id: string; key: string | null; value: string }[]),
-    prisma.memoryFact.count({ where: { ...scope, status: "pending" } }).catch(() => 0),
+    prisma.memoryFact.count({ where: { ...scope, status: "pending", deletedAt: null } }).catch(() => 0),
   ]);
 
   const clear = overdue.length === 0 && dueToday.length === 0 && doing.length === 0 && pendingCount === 0;

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const facts = await prisma.memoryFact
-    .findMany({ orderBy: [{ pinned: "desc" }, { createdAt: "desc" }] })
+    .findMany({ where: { deletedAt: null }, orderBy: [{ pinned: "desc" }, { createdAt: "desc" }] })
     .catch(() => []);
   return Response.json({ facts });
 }

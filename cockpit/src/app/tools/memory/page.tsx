@@ -11,15 +11,23 @@ export default async function MemoryPage() {
   await archiveStaleFacts().catch(() => 0);
 
   const activeProjectId = await getActiveProjectId();
-  const [rows, projects] = await Promise.all([
+  const [rows, trashedRows, projects] = await Promise.all([
     prisma.memoryFact
       .findMany({
-        where: { status: { not: "dismissed" } },
+        where: { status: { not: "dismissed" }, deletedAt: null },
         orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
         include: {
           project: { select: { name: true } },
           mergedInto: { select: { value: true } },
         },
+      })
+      .catch(() => []),
+    prisma.memoryFact
+      .findMany({
+        where: { deletedAt: { not: null } },
+        orderBy: { deletedAt: "desc" },
+        take: 100,
+        include: { project: { select: { name: true } } },
       })
       .catch(() => []),
     prisma.project
@@ -44,5 +52,14 @@ export default async function MemoryPage() {
     mergedIntoValue: f.mergedInto?.value ?? null,
   }));
 
-  return <MemoryManager facts={facts} projects={projects} activeProjectId={activeProjectId} />;
+  const trashed = trashedRows.map((f) => ({
+    id: f.id,
+    key: f.key,
+    value: f.value,
+    projectName: f.project?.name ?? null,
+  }));
+
+  return (
+    <MemoryManager facts={facts} trashed={trashed} projects={projects} activeProjectId={activeProjectId} />
+  );
 }

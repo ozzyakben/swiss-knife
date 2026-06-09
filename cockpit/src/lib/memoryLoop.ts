@@ -200,6 +200,7 @@ export async function learnFromText(args: {
   const existing = await prisma.memoryFact.findMany({
     where: {
       status: { in: ["active", "pending"] },
+      deletedAt: null,
       OR: [{ projectId: null }, ...(projectId ? [{ projectId }] : [])],
     },
     select: { id: true, value: true, category: true, status: true, embedding: true },
@@ -338,7 +339,7 @@ export async function learnFromActivity(
 export async function classifyUncategorized(projectId?: string | null): Promise<{ classified: number }> {
   const scope = projectId ? { OR: [{ projectId: null }, { projectId }] } : {};
   const rows = await prisma.memoryFact.findMany({
-    where: { status: { in: ["active", "pending"] }, category: null, ...scope },
+    where: { status: { in: ["active", "pending"] }, category: null, deletedAt: null, ...scope },
     select: { id: true, value: true },
   });
   if (rows.length === 0) return { classified: 0 };
@@ -388,10 +389,10 @@ export async function reindexFacts(): Promise<{ indexed: number; total: number }
   const statuses = ["active", "pending"];
   const [rows, total] = await Promise.all([
     prisma.memoryFact.findMany({
-      where: { status: { in: statuses }, embedding: null },
+      where: { status: { in: statuses }, embedding: null, deletedAt: null },
       select: { id: true, value: true },
     }),
-    prisma.memoryFact.count({ where: { status: { in: statuses } } }),
+    prisma.memoryFact.count({ where: { status: { in: statuses }, deletedAt: null } }),
   ]);
   if (rows.length === 0) return { indexed: 0, total };
 
@@ -451,6 +452,7 @@ export async function archiveStaleFacts(): Promise<number> {
         sourceKey: null,
         useCount: 0,
         lastUsedAt: null,
+        deletedAt: null,
         createdAt: { lt: cutoff },
       },
       data: { status: "archived" },
