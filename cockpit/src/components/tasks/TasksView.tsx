@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePersisted } from "@/hooks/usePersisted";
 import { BoardColumn } from "./BoardColumn";
 import { TaskCard } from "./TaskCard";
 import { TaskAiTools } from "./TaskAiTools";
@@ -71,9 +72,12 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   const [editing, setEditing] = useState<Task | null>(null);
 
   // ---- search + filter (client-side, instant — like the Memory page) ----
+  // Priority/module filters and the board/list tab survive reloads
+  // (localStorage); the search box stays ephemeral by design.
   const [query, setQuery] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
-  const [moduleFilter, setModuleFilter] = useState<string>("all"); // "all" | "none" | <module>
+  const [priorityRaw, setPriorityFilter] = usePersisted("sk:tasks:priority", "all");
+  const [moduleRaw, setModuleFilter] = usePersisted("sk:tasks:module", "all");
+  const [view, setView] = usePersisted("sk:tasks:view", "board");
   const clearFilters = () => {
     setQuery("");
     setPriorityFilter("all");
@@ -90,6 +94,12 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
 
   // Distinct modules present (e.g. LBMH training modules), for the module filter.
   const modules = [...new Set(allTasks.filter((t) => t.module).map((t) => t.module as string))].sort();
+  // Stored values are validated against what exists NOW — a stale persisted
+  // module (or garbage) degrades to "all" instead of silently hiding tasks.
+  const priorityFilter: "all" | Priority =
+    priorityRaw === "low" || priorityRaw === "medium" || priorityRaw === "high" ? priorityRaw : "all";
+  const moduleFilter =
+    moduleRaw === "all" || moduleRaw === "none" || modules.includes(moduleRaw) ? moduleRaw : "all";
   const q = query.trim().toLowerCase();
   const isFiltering = q !== "" || priorityFilter !== "all" || moduleFilter !== "all";
   const matches = (t: Task): boolean => {
@@ -318,7 +328,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
             className="pl-8"
           />
         </div>
-        <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as "all" | Priority)}>
+        <Select value={priorityFilter} onValueChange={setPriorityFilter}>
           <SelectTrigger className="w-32" aria-label="Filter by priority">
             <SelectValue />
           </SelectTrigger>
@@ -355,7 +365,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
         </span>
       </div>
 
-      <Tabs defaultValue="board" className="mt-4">
+      <Tabs value={view === "list" ? "list" : "board"} onValueChange={setView} className="mt-4">
         <TabsList>
           <TabsTrigger value="board">Board</TabsTrigger>
           <TabsTrigger value="list">List</TabsTrigger>
@@ -378,6 +388,8 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
                   tasks={filtered[c.id]}
                   onEdit={setEditing}
                   onDelete={deleteTask}
+                  onFilterModule={setModuleFilter}
+                  onFilterPriority={setPriorityFilter}
                 />
               ))}
             </div>
@@ -417,7 +429,12 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
                   <Badge variant="outline" className="text-[10px]">
                     {t.status}
                   </Badge>
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer text-[10px]"
+                    title={`Filter by ${t.priority} priority`}
+                    onClick={() => setPriorityFilter(t.priority)}
+                  >
                     {t.priority}
                   </Badge>
                   {t.dueDate && (

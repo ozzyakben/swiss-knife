@@ -18,10 +18,15 @@ export function TaskCard({
   task,
   onEdit,
   onDelete,
+  onFilterModule,
+  onFilterPriority,
 }: {
   task: Task;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  /** Badges become filter chips when these are provided. */
+  onFilterModule?: (module: string) => void;
+  onFilterPriority?: (priority: Task["priority"]) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -51,11 +56,21 @@ export function TaskCard({
           <p className="text-sm">{task.title}</p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {task.module && (
-              <Badge variant="outline" className="border-primary/40 text-[10px] font-medium">
+              <Badge
+                variant="outline"
+                className={"border-primary/40 text-[10px] font-medium" + (onFilterModule ? " cursor-pointer" : "")}
+                title={onFilterModule ? `Filter by module “${task.module}”` : undefined}
+                onClick={onFilterModule ? () => onFilterModule(task.module as string) : undefined}
+              >
                 {task.module}
               </Badge>
             )}
-            <Badge variant={PRIORITY_VARIANT[task.priority]} className="text-[10px]">
+            <Badge
+              variant={PRIORITY_VARIANT[task.priority]}
+              className={"text-[10px]" + (onFilterPriority ? " cursor-pointer" : "")}
+              title={onFilterPriority ? `Filter by ${task.priority} priority` : undefined}
+              onClick={onFilterPriority ? () => onFilterPriority(task.priority) : undefined}
+            >
               {task.priority}
             </Badge>
             {task.projectName && (

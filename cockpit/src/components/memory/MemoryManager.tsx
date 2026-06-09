@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+
+import { usePersisted } from "@/hooks/usePersisted";
 import {
   Pin,
   Trash2,
@@ -82,10 +84,22 @@ const CATEGORY_ORDER = [
   "general",
 ];
 
-function CategoryBadge({ category }: { category: string | null }) {
+function CategoryBadge({
+  category,
+  onClick,
+}: {
+  category: string | null;
+  /** When provided, the badge acts as a click-to-filter chip. */
+  onClick?: (category: string) => void;
+}) {
   if (!category) return null;
   return (
-    <Badge variant="outline" className="text-[10px] capitalize">
+    <Badge
+      variant="outline"
+      className={"text-[10px] capitalize" + (onClick ? " cursor-pointer" : "")}
+      title={onClick ? `Filter by category “${category}”` : undefined}
+      onClick={onClick ? () => onClick(category) : undefined}
+    >
       {category}
     </Badge>
   );
@@ -111,8 +125,9 @@ export function MemoryManager({
   const [suggestOpen, setSuggestOpen] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
-  const [filterProject, setFilterProject] = useState(ALL);
-  const [filterCategory, setFilterCategory] = useState(ALLCAT);
+  // Project/category filters survive reloads; the search box stays ephemeral.
+  const [filterProject, setFilterProject] = usePersisted("sk:memory:project", ALL);
+  const [filterCategory, setFilterCategory] = usePersisted("sk:memory:category", ALLCAT);
   const [search, setSearch] = useState("");
   const [reindexing, setReindexing] = useState(false);
   const [classifying, setClassifying] = useState(false);
@@ -479,7 +494,7 @@ export function MemoryManager({
                     )}
                     {f.pinned && <Pin className="h-3 w-3 text-yellow-500" />}
                     <span className="flex-1">{f.key ? `${f.key}: ` : ""}{f.value}</span>
-                    <CategoryBadge category={f.category} />
+                    <CategoryBadge category={f.category} onClick={setFilterCategory} />
                   </li>
                 ))}
               </ol>
@@ -502,7 +517,7 @@ export function MemoryManager({
                     <Badge variant="secondary" className="text-[10px]">
                       merge
                     </Badge>
-                    <CategoryBadge category={f.category} />
+                    <CategoryBadge category={f.category} onClick={setFilterCategory} />
                     {f.projectName && (
                       <Badge variant="outline" className="text-[10px]">
                         {f.projectName}
@@ -551,7 +566,7 @@ export function MemoryManager({
                   <Badge variant="secondary" className="text-[10px]">
                     ai
                   </Badge>
-                  <CategoryBadge category={f.category} />
+                  <CategoryBadge category={f.category} onClick={setFilterCategory} />
                   {editingId === f.id ? (
                     <Input
                       value={editValue}
@@ -618,7 +633,13 @@ export function MemoryManager({
             {groupByCategory(active).map(([cat, items]) => (
               <div key={cat}>
                 <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-                  <span className={cat === UNCAT ? "" : "capitalize"}>
+                  <span
+                    className={
+                      (cat === UNCAT ? "" : "capitalize ") + "cursor-pointer hover:text-foreground"
+                    }
+                    title={`Filter by this category`}
+                    onClick={() => setFilterCategory(cat)}
+                  >
                     {cat === UNCAT ? "Uncategorized" : cat}
                   </span>{" "}
                   ({items.length})
@@ -647,7 +668,12 @@ export function MemoryManager({
                           <span className="flex-1 text-sm">{f.value}</span>
                         )}
                         {f.projectName && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge
+                            variant="outline"
+                            className="cursor-pointer text-[10px]"
+                            title={`Filter by project “${f.projectName}”`}
+                            onClick={() => setFilterProject(f.projectId ?? NONE)}
+                          >
                             {f.projectName}
                           </Badge>
                         )}
@@ -704,7 +730,7 @@ export function MemoryManager({
               {archived.map((f) => (
                 <Card key={f.id}>
                   <CardContent className="flex items-center gap-3 py-3">
-                    <CategoryBadge category={f.category} />
+                    <CategoryBadge category={f.category} onClick={setFilterCategory} />
                     <span className="flex-1 text-sm text-muted-foreground">{f.value}</span>
                     <Button
                       variant="ghost"

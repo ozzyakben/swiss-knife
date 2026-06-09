@@ -2,45 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo, useSyncExternalStore } from "react";
+import { useMemo } from "react";
 import { ExternalLink, Star, ArrowDownAZ, ArrowUpZA, ListFilter } from "lucide-react";
 
 import { NAV_ITEMS, type NavItem } from "@/lib/nav";
+import { usePersisted } from "@/hooks/usePersisted";
 
 const FAV_KEY = "sk:nav:favorites";
 const SORT_KEY = "sk:nav:sort";
-
-// localStorage-backed prefs read via useSyncExternalStore — SSR-safe (server
-// snapshot = the default), so no hydration mismatch and no setState-in-effect.
-function subscribe(cb: () => void) {
-  window.addEventListener("storage", cb);
-  window.addEventListener("sk:storage", cb);
-  return () => {
-    window.removeEventListener("storage", cb);
-    window.removeEventListener("sk:storage", cb);
-  };
-}
-
-function usePersisted(key: string, fallback: string): [string, (v: string) => void] {
-  const value = useSyncExternalStore(
-    subscribe,
-    () => {
-      try {
-        return localStorage.getItem(key) ?? fallback;
-      } catch {
-        return fallback;
-      }
-    },
-    () => fallback
-  );
-  const setValue = (v: string) => {
-    try {
-      localStorage.setItem(key, v);
-    } catch {}
-    window.dispatchEvent(new Event("sk:storage"));
-  };
-  return [value, setValue];
-}
 
 export function SidebarNav() {
   const pathname = usePathname();
