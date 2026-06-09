@@ -19,9 +19,17 @@ export async function POST(req: Request) {
     return Response.json({ error: "Expected { columns }." }, { status: 400 });
   }
 
+  // Drop ids that no longer exist (e.g. a task deleted in another tab) so a
+  // benign race doesn't roll back the whole drag; the remaining real moves still
+  // persist atomically.
+  const allIds = STATUSES.flatMap((s) => (Array.isArray(columns[s]) ? columns[s] : []));
+  const known = new Set(
+    (await prisma.task.findMany({ where: { id: { in: allIds } }, select: { id: true } })).map((t) => t.id)
+  );
+
   const updates: Prisma.PrismaPromise<unknown>[] = [];
   for (const status of STATUSES) {
-    const ids = Array.isArray(columns[status]) ? columns[status] : [];
+    const ids = (Array.isArray(columns[status]) ? columns[status] : []).filter((id) => known.has(id));
     ids.forEach((id, index) => {
       updates.push(
         prisma.task.update({
@@ -32,9 +40,9 @@ export async function POST(req: Request) {
     });
   }
 
-  // Atomic: the whole board layout commits or none of it does. A failed write
-  // (e.g. a task deleted elsewhere) now surfaces as a 500 instead of a silent
-  // partial save reported as success — the client resyncs from the DB.
+  // Atomic: the real moves all commit or none do. A genuine DB error surfaces as
+  // a 500 (the client shows an error toast) instead of a silent partial save
+  // reported as success.
   try {
     await prisma.$transaction(updates);
     return Response.json({ ok: true });

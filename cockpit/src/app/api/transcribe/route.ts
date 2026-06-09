@@ -9,7 +9,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Bound the subprocesses so a hung ffmpeg/whisper can't pin a request forever,
-// and cap the upload so a giant clip can't exhaust memory/disk.
+// and cap the upload (early via Content-Length, authoritatively via the buffer
+// length) so a giant clip can't fill the disk or the whisper input.
 const SPAWN_TIMEOUT_MS = 60_000;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
@@ -55,6 +56,13 @@ function isTimeout(e: unknown): boolean {
 }
 
 export async function POST(req: Request) {
+  // Early-out before buffering the whole multipart body into memory. The header
+  // is client-controlled, so buf.length below stays the authoritative gate.
+  const declaredLen = Number(req.headers.get("content-length"));
+  if (Number.isFinite(declaredLen) && declaredLen > MAX_AUDIO_BYTES) {
+    return Response.json({ error: "Audio too large (max 25 MB)." }, { status: 413 });
+  }
+
   const form = await req.formData().catch(() => null);
   const file = form?.get("audio");
   if (!file || typeof file === "string") {
@@ -119,6 +127,15 @@ export async function POST(req: Request) {
         return Response.json({ error: "Transcription timed out." }, { status: 504 });
       }
       throw e;
+    }
+
+    // A non-zero whisper exit is a real failure — don't report it as a
+    // successful empty transcription (mirror the ffmpeg exit-code guard above).
+    if (res.code !== 0) {
+      return Response.json(
+        { error: "Transcription failed.", detail: res.stderr.slice(0, 200) },
+        { status: 422 }
+      );
     }
 
     let text = "";

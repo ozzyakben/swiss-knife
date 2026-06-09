@@ -83,8 +83,12 @@ export function stripFences(s: string): string {
 }
 
 export function parseVerdict(raw: string): RubricScore["verdict"] {
-  if (/verdict:\s*pass/i.test(raw)) return "PASS";
+  // BLOCK is the safe verdict ("if it is not clearly a pass, BLOCK"), so check it
+  // first: a rubric that mentions both (e.g. "verdict: pass-criteria not met …
+  // Verdict: BLOCK") resolves to BLOCK rather than letting a stray "pass"
+  // substring win.
   if (/verdict:\s*block/i.test(raw)) return "BLOCK";
+  if (/verdict:\s*pass/i.test(raw)) return "PASS";
   return "UNKNOWN";
 }
 

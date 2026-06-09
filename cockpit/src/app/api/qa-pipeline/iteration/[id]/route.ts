@@ -88,8 +88,11 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const it = await prisma.qaIteration.delete({ where: { id }, select: { sessionId: true } });
     sessionId = it.sessionId;
   } catch (e) {
+    // DELETE is idempotent: an already-gone iteration is a success (the client
+    // just filters the row out), matching the session DELETE and the prior
+    // contract. Only a genuine DB error is a failure.
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2025") {
-      return Response.json({ error: "Iteration not found." }, { status: 404 });
+      return Response.json({ ok: true, sessionDeleted: false });
     }
     return Response.json({ error: "Couldn't delete the iteration." }, { status: 500 });
   }

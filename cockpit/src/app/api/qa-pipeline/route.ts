@@ -84,7 +84,13 @@ export async function POST(req: Request) {
   const notReady = await assertOllamaReady();
   if (notReady) return notReady;
 
-  const { draftFeature, lint, rubric } = await runFreshIteration(input, projectId, ctx);
+  let iteration;
+  try {
+    iteration = await runFreshIteration(input, projectId, ctx);
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : "QA run failed." }, { status: 500 });
+  }
+  const { draftFeature, lint, rubric } = iteration;
 
   const session = await prisma.qaSession.create({
     data: {

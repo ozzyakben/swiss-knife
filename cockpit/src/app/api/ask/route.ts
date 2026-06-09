@@ -21,13 +21,18 @@ export async function POST(req: Request) {
   const projectId = await getActiveProjectId();
   const memory = await getMemoryContext({ projectId, query: q.trim() });
 
-  const text = await chat(
-    [
-      ...(memory ? [{ role: "system" as const, content: memory }] : []),
-      { role: "system", content: "Answer concisely and helpfully. If you don't know, say so." },
-      { role: "user", content: q.trim() },
-    ],
-    { model: cfg.model, baseUrl: cfg.baseUrl, temperature: 0.4 }
-  );
+  let text: string;
+  try {
+    text = await chat(
+      [
+        ...(memory ? [{ role: "system" as const, content: memory }] : []),
+        { role: "system", content: "Answer concisely and helpfully. If you don't know, say so." },
+        { role: "user", content: q.trim() },
+      ],
+      { model: cfg.model, baseUrl: cfg.baseUrl, temperature: 0.4 }
+    );
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : "Ask failed." }, { status: 500 });
+  }
   return Response.json({ text: text.trim() });
 }

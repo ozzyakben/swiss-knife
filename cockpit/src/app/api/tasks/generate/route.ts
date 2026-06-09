@@ -21,18 +21,23 @@ export async function POST(req: Request) {
   const projectId = await getActiveProjectId();
   const memory = await getMemoryContext({ projectId, query: goal.trim() });
 
-  const text = await chat(
-    [
-      {
-        role: "system",
-        content:
-          "You break a goal into concrete, actionable tasks. Return ONLY a plain list, one task per line, 3-7 tasks, no numbering, no headers, no commentary. Each line is a short imperative task.",
-      },
-      ...(memory ? [{ role: "system" as const, content: memory }] : []),
-      { role: "user", content: goal.trim() },
-    ],
-    { model: cfg.model, baseUrl: cfg.baseUrl, temperature: 0.4 }
-  );
+  let text: string;
+  try {
+    text = await chat(
+      [
+        {
+          role: "system",
+          content:
+            "You break a goal into concrete, actionable tasks. Return ONLY a plain list, one task per line, 3-7 tasks, no numbering, no headers, no commentary. Each line is a short imperative task.",
+        },
+        ...(memory ? [{ role: "system" as const, content: memory }] : []),
+        { role: "user", content: goal.trim() },
+      ],
+      { model: cfg.model, baseUrl: cfg.baseUrl, temperature: 0.4 }
+    );
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : "Couldn't generate tasks." }, { status: 500 });
+  }
 
   const titles = text
     .split("\n")

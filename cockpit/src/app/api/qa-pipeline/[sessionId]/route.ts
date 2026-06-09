@@ -73,13 +73,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
   const previousDraft = previous?.draftFeature ?? "";
   const nextOrder = (previous?.order ?? 0) + 1;
 
-  const { draftFeature, lint, rubric } = await runFollowUpIteration(
-    session.story,
-    previousDraft,
-    instruction,
-    session.projectId,
-    ctx
-  );
+  let result;
+  try {
+    result = await runFollowUpIteration(session.story, previousDraft, instruction, session.projectId, ctx);
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : "Refine failed." }, { status: 500 });
+  }
+  const { draftFeature, lint, rubric } = result;
 
   const iteration = await prisma.qaIteration.create({
     data: {

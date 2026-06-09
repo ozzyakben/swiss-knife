@@ -25,23 +25,42 @@ export async function POST(req: Request) {
   const { baseUrl, temperature, visionModel } = await getEffectiveConfig();
   const text = prompt?.trim() || DEFAULT_VISION_PROMPT;
   const encoder = new TextEncoder();
+  // Propagate a client disconnect to the upstream vision fetch so a cancelled
+  // request stops generating (mirrors streamTextResponse).
+  const ac = new AbortController();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const safeEnqueue = (s: string) => {
+        try {
+          controller.enqueue(encoder.encode(s));
+        } catch {
+          /* client already gone */
+        }
+      };
       try {
         for await (const token of streamChatWithImages(text, [image], {
           model: visionModel,
           baseUrl,
           temperature,
+          signal: ac.signal,
         })) {
           controller.enqueue(encoder.encode(token));
         }
-        controller.close();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "vision failed";
-        controller.enqueue(encoder.encode(`\n${ERROR_SENTINEL} ${msg}`));
-        controller.close();
+        if (!ac.signal.aborted) {
+          const msg = err instanceof Error ? err.message : "vision failed";
+          safeEnqueue(`\n${ERROR_SENTINEL} ${msg}`);
+        }
       }
+      try {
+        controller.close();
+      } catch {
+        /* already closed */
+      }
+    },
+    cancel() {
+      ac.abort();
     },
   });
 

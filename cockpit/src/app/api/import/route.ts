@@ -12,6 +12,10 @@ type UpsertOutcome = { ok: number; failed: number };
 async function upsertAll(model: Upsertable, rows: unknown): Promise<UpsertOutcome> {
   let ok = 0;
   let failed = 0;
+  // A present-but-non-array collection field is a corrupted backup section, not
+  // an absent one — surface it as a skipped failure (an absent/empty field is a
+  // legitimate {ok:0,failed:0}).
+  if (rows != null && !Array.isArray(rows)) return { ok: 0, failed: 1 };
   // Tolerate a malformed export where a field isn't an array (would otherwise
   // throw a 500 on the for…of); count non-object/no-id rows as failures.
   for (const r of Array.isArray(rows) ? rows : []) {
