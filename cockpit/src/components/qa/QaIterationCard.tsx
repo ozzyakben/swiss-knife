@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { analyzeCoverage } from "@/lib/gherkinLint";
 import type { Iteration } from "@/components/qa/types";
 
 type Props = {
@@ -54,6 +55,7 @@ export function QaIterationCard({ iteration: it, onEditDraft, onRescore, onDelet
 
   const lint = it.lint;
   const rubric = it.rubric;
+  const coverage = analyzeCoverage(it.draftFeature);
 
   return (
     <Card>
@@ -160,6 +162,29 @@ export function QaIterationCard({ iteration: it, onEditDraft, onRescore, onDelet
                   </Badge>
                   <span className="mt-0.5 text-xs tabular-nums text-muted-foreground">L{iss.line}</span>
                   <span className="flex-1 text-sm">{iss.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Coverage */}
+        <section>
+          <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Coverage
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {coverage.scenarios} scenario{coverage.scenarios === 1 ? "" : "s"} · {coverage.intents.valid} valid ·{" "}
+            {coverage.intents.invalid} invalid · {coverage.intents.security} security
+          </p>
+          {coverage.gaps.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              {coverage.gaps.map((g, i) => (
+                <div key={i} className="flex items-start gap-2 rounded-md border border-dashed border-border p-2">
+                  <Badge variant="outline" className="mt-0.5 text-[10px]">
+                    GAP
+                  </Badge>
+                  <span className="flex-1 text-sm">{g}</span>
                 </div>
               ))}
             </div>

@@ -217,3 +217,36 @@ export function lintGherkin(text: string): GherkinLintResult {
 
   return { issues, summary: { errors, warnings, scenarios: feature.scenarios.length }, ok: errors === 0 };
 }
+
+// ── Coverage analysis ────────────────────────────────────────────────────────
+// Deterministic "what's not covered" read of a .feature, distinct from the
+// pass/fail lint: it surfaces missing test dimensions (negative paths, missing
+// assertions) so a happy-path-only draft is visible at a glance.
+export type Coverage = {
+  scenarios: number;
+  intents: { valid: number; invalid: number; security: number; regression: number };
+  noAssertion: number;
+  gaps: string[];
+};
+
+export function analyzeCoverage(text: string): Coverage {
+  const feature = parseFeature(text);
+  const intents = { valid: 0, invalid: 0, security: 0, regression: 0 };
+  let noAssertion = 0;
+  for (const s of feature.scenarios) {
+    const tags = new Set(s.tags);
+    if (tags.has("valid")) intents.valid += 1;
+    if (tags.has("invalid")) intents.invalid += 1;
+    if (tags.has("security")) intents.security += 1;
+    if (tags.has("regression")) intents.regression += 1;
+    if (!s.steps.some((st) => st.kw === "Then")) noAssertion += 1;
+  }
+  const gaps: string[] = [];
+  if (feature.scenarios.length > 0 && intents.invalid === 0 && intents.security === 0) {
+    gaps.push("No negative paths — every scenario is a happy path. Add @invalid / @security cases.");
+  }
+  if (noAssertion > 0) {
+    gaps.push(`${noAssertion} scenario${noAssertion > 1 ? "s" : ""} with no \`Then\` (no assertion).`);
+  }
+  return { scenarios: feature.scenarios.length, intents, noAssertion, gaps };
+}

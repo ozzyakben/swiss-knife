@@ -92,6 +92,10 @@ test.describe("qa pipeline", () => {
     await expect(page.getByText("lint PASS")).toBeVisible();
     await expect(page.getByText("rubric PASS")).toBeVisible();
     await expect(page.getByRole("button", { name: /refine/i })).toBeVisible();
+    // Deterministic coverage panel flags the happy-path-only draft.
+    await expect(page.getByText("Coverage", { exact: true })).toBeVisible();
+    await expect(page.getByText(/No negative paths/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /negative paths/i })).toBeVisible();
   });
 
   test("a blocked run shows lint BLOCK", async ({ page }) => {
