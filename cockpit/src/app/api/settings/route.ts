@@ -5,6 +5,29 @@ import { checkHealth } from "@/lib/health";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// The engine must stay on this machine (hard rule: no cloud LLM calls). The base
+// URL is fetched server-side for every generation, so an arbitrary host here is
+// both an SSRF vector and a silent data-exfiltration path. Restrict it to the
+// local loopback / the Docker host bridge.
+const ALLOWED_ENGINE_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "::1",
+  "host.docker.internal",
+]);
+
+function isLocalEngineUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    const host = u.hostname.replace(/^\[|\]$/g, ""); // strip IPv6 brackets
+    return ALLOWED_ENGINE_HOSTS.has(host);
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   const [config, health] = await Promise.all([getEffectiveConfig(), checkHealth()]);
   const s = await prisma.settings.findUnique({ where: { id: "singleton" } }).catch(() => null);
@@ -35,7 +58,16 @@ export async function PUT(req: Request) {
   // Only touch engine config when those fields are present (the OWUI key form omits them).
   if ("model" in body) data.model = norm(body.model);
   if ("qaModel" in body) data.qaModel = norm(body.qaModel);
-  if ("baseUrl" in body) data.baseUrl = norm(body.baseUrl);
+  if ("baseUrl" in body) {
+    const baseUrl = norm(body.baseUrl);
+    if (baseUrl !== null && !isLocalEngineUrl(baseUrl)) {
+      return Response.json(
+        { error: "Engine URL must be local (localhost / 127.0.0.1 / host.docker.internal). The engine stays on this machine." },
+        { status: 400 }
+      );
+    }
+    data.baseUrl = baseUrl; // null clears it back to the default
+  }
   if ("temperature" in body) data.temperature = temp;
   if (typeof body.theme === "string" && body.theme) data.theme = body.theme;
   if (typeof body.owuiApiKey === "string") data.owuiApiKey = body.owuiApiKey.trim() || null;

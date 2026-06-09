@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { assertOllamaReady } from "@/lib/health";
 import { isRoutine, runRoutine, ROUTINES } from "@/lib/routines";
+import { readCaptureToken, tokenMatches } from "@/lib/captureAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,8 +20,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
   if (!configured) {
     return Response.json({ error: "Set a capture token in Settings first." }, { status: 400 });
   }
-  const provided = req.headers.get("x-capture-token") || new URL(req.url).searchParams.get("token");
-  if (provided !== configured) {
+  if (!tokenMatches(readCaptureToken(req), configured)) {
     return Response.json({ error: "Invalid token." }, { status: 401 });
   }
   if (!isRoutine(slug)) {
