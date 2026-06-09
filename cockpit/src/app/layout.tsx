@@ -20,9 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           enableSystem
           disableTransitionOnChange
         >
-          <div className="flex h-screen overflow-hidden">
+          <div className="flex h-screen flex-col overflow-hidden md:flex-row">
             <Sidebar />
-            <main className="flex-1 overflow-y-auto p-8">{children}</main>
+            <main className="flex-1 overflow-y-auto p-4 md:p-8">{children}</main>
           </div>
           <Toaster />
           <CommandPalette />

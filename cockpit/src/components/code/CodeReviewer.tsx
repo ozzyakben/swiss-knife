@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { AiOutput } from "@/components/tools/AiOutput";
+import { ErrorAlert } from "@/components/ErrorAlert";
 import type { SmellResult } from "@/lib/codeSmells";
 
 export function CodeReviewer() {
@@ -89,7 +90,7 @@ export function CodeReviewer() {
         )}
       </div>
 
-      {error && <p className="mt-4 text-sm text-destructive">⚠ {error}</p>}
+      {error && <ErrorAlert className="mt-4" title="Explanation failed" message={error} />}
 
       {scan && s && (
         <div className="mt-6">

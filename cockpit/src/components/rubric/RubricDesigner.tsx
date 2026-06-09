@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
+import { ErrorAlert } from "@/components/ErrorAlert";
 import type { RubricLint, RubricSpec } from "@/lib/rubric";
 
 type Separation = {
@@ -144,7 +145,7 @@ export function RubricDesigner() {
         </Button>
       </div>
 
-      {error && <p className="mt-4 text-sm text-destructive">⚠ {error}</p>}
+      {error && <ErrorAlert className="mt-4" title="Design failed" message={error} />}
 
       {result && lint && (
         <div className="mt-6 space-y-4">

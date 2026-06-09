@@ -17,6 +17,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { QaSessionView } from "@/components/qa/QaSessionView";
+import { EmptyState } from "@/components/EmptyState";
+import { LoadingState } from "@/components/LoadingState";
 import type { Iteration, Session, SessionSummary } from "@/components/qa/types";
 
 const EXAMPLE = `As a cashier, I want to make a walk-in cash sale of in-stock items tax-exempt at the point of sale, so a tax-exempt customer is charged correctly.
@@ -377,18 +379,20 @@ export function QaPipeline() {
       <div className="mt-8">
         <h2 className="text-sm font-medium text-muted-foreground">Saved sessions</h2>
         {loadingList ? (
-          <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
+          <LoadingState className="mt-2" />
         ) : sessions.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">
-            No saved sessions yet. Run a story above to start one.
-          </p>
+          <EmptyState
+            className="mt-2"
+            title="No saved sessions yet"
+            hint="Run a story above to start one."
+          />
         ) : (
           <div className="mt-2 space-y-2">
             {sessions.map((s) => (
               <Card key={s.id} className="transition-colors hover:border-foreground/30">
                 <CardContent className="flex items-center gap-3 py-3">
-                  <button onClick={() => openSession(s.id)} className="flex-1 text-left">
-                    <div className="font-medium">{s.title}</div>
+                  <button onClick={() => openSession(s.id)} className="min-w-0 flex-1 text-left">
+                    <div className="truncate font-medium">{s.title}</div>
                     <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span>
                         {s.iterationCount} iteration{s.iterationCount === 1 ? "" : "s"}

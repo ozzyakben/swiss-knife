@@ -6,6 +6,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
 import { CommandHint } from "@/components/CommandHint";
 import { SidebarNav } from "@/components/SidebarNav";
+import { MobileSidebar } from "@/components/MobileSidebar";
 
 export default async function Sidebar() {
   const [projects, activeId] = await Promise.all([
@@ -19,8 +20,9 @@ export default async function Sidebar() {
     getActiveProjectId(),
   ]);
 
-  return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
+  // Rendered twice: inside the md+ persistent aside and inside the <md drawer.
+  const content = (
+    <>
       <div className="flex items-center justify-between px-4 py-3.5">
         <span className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
           <Wrench className="h-[18px] w-[18px] text-muted-foreground" />
@@ -41,6 +43,18 @@ export default async function Sidebar() {
       <div className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
         Powered by local Gemma 4
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <MobileSidebar>{content}</MobileSidebar>
+      <aside
+        aria-label="Sidebar"
+        className="hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex"
+      >
+        {content}
+      </aside>
+    </>
   );
 }

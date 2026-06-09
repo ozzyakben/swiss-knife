@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { AiOutput } from "@/components/tools/AiOutput";
+import { ErrorAlert } from "@/components/ErrorAlert";
 import { downloadText } from "@/lib/download";
 import type { AdrLintResult } from "@/lib/adrLint";
 
@@ -181,7 +182,7 @@ export function AdrWriter() {
         )}
       </div>
 
-      {error && <p className="mt-4 text-sm text-destructive">⚠ {error}</p>}
+      {error && <ErrorAlert className="mt-4" title="Draft failed" message={error} />}
 
       <AiOutput output={output} status={status} label="ADR draft" />
 

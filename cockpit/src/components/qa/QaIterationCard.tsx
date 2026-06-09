@@ -68,7 +68,7 @@ export function QaIterationCard({ iteration: it, onEditDraft, onRescore, onDelet
           </Badge>
         )}
         {it.edited && <Badge variant="outline">edited</Badge>}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <Badge variant={lint.ok ? "secondary" : "destructive"}>
             lint {lint.ok ? "PASS" : "BLOCK"}
           </Badge>
