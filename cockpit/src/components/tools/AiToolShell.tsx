@@ -6,7 +6,7 @@ import { toast } from "sonner";
 
 import { useAiTool } from "@/hooks/useAiTool";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { AiOutput } from "@/components/tools/AiOutput";
 
 export type AiToolShellProps = {
@@ -57,12 +57,12 @@ export function AiToolShell({
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       {description && <p className="mt-1 text-muted-foreground">{description}</p>}
 
-      <Textarea
+      <VoiceTextarea
         className="mt-6"
         rows={6}
         value={input}
         placeholder={placeholder}
-        onChange={(e) => setInput(e.target.value)}
+        onValueChange={setInput}
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && input.trim() && !isRunning) {
             e.preventDefault();

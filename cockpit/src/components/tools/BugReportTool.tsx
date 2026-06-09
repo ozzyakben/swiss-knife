@@ -5,7 +5,7 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { downloadText } from "@/lib/download";
@@ -73,11 +73,11 @@ export function BugReportTool() {
         your project vocabulary, and gates it on completeness before saving.
       </p>
 
-      <Textarea
+      <VoiceTextarea
         className="mt-6"
         rows={5}
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onValueChange={setNote}
         placeholder="e.g. POS partial ROA payment errors when amount is less than balance — should accept and apply oldest-invoice-first…"
         disabled={busy}
         onKeyDown={(e) => {

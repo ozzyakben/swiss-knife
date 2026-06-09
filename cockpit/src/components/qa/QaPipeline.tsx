@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -280,10 +281,10 @@ export function QaPipeline() {
       </p>
 
       <div className="mt-6">
-        <Textarea
+        <VoiceTextarea
           rows={6}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onValueChange={setInput}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && input.trim() && !busyNew) {
               e.preventDefault();

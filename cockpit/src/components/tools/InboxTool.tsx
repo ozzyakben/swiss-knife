@@ -6,7 +6,7 @@ import { Upload } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 
 const isGherkin = (t: string) => /^\s*(Feature|Scenario|Scenario Outline|Example):/m.test(t);
 
@@ -82,12 +82,12 @@ export function InboxTool() {
           "mt-6 rounded-lg border-2 border-dashed p-1 " + (over ? "border-foreground bg-accent" : "border-border")
         }
       >
-        <Textarea
+        <VoiceTextarea
           rows={10}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onValueChange={setText}
           placeholder="Drop a .feature / .txt / .md / .csv here, or paste text…"
-          className="border-0 focus-visible:ring-0"
+          textareaClassName="border-0 focus-visible:ring-0"
           disabled={busy}
         />
       </div>

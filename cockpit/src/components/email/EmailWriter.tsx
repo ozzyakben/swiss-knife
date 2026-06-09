@@ -9,7 +9,7 @@ import { useAiTool } from "@/hooks/useAiTool";
 import { AiOutput } from "@/components/tools/AiOutput";
 import { ContextUsed } from "@/components/tools/ContextUsed";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -101,11 +101,11 @@ export function EmailWriter() {
       {mode === "reply" && (
         <div className="mt-4 space-y-1.5">
           <Label htmlFor="source">Email you&apos;re replying to</Label>
-          <Textarea
+          <VoiceTextarea
             id="source"
             rows={5}
             value={sourceText}
-            onChange={(e) => setSourceText(e.target.value)}
+            onValueChange={setSourceText}
             placeholder="Paste the email you received…"
             disabled={isRunning}
           />
@@ -114,11 +114,11 @@ export function EmailWriter() {
 
       <div className="mt-4 space-y-1.5">
         <Label htmlFor="brief">Brief — what should it say?</Label>
-        <Textarea
+        <VoiceTextarea
           id="brief"
           rows={4}
           value={brief}
-          onChange={(e) => setBrief(e.target.value)}
+          onValueChange={setBrief}
           placeholder="e.g. Ask for a 2-day extension on the report, apologize for the delay, propose Thursday."
           disabled={isRunning}
         />

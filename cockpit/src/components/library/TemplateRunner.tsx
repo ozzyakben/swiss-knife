@@ -10,7 +10,7 @@ import { AiOutput } from "@/components/tools/AiOutput";
 import { ContextUsed } from "@/components/tools/ContextUsed";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -96,11 +96,11 @@ export function TemplateRunner({
               </SelectContent>
             </Select>
           ) : v.type === "textarea" ? (
-            <Textarea
+            <VoiceTextarea
               id={`var-${v.name}`}
               rows={4}
               value={values[v.name] ?? ""}
-              onChange={(e) => set(v.name, e.target.value)}
+              onValueChange={(val) => set(v.name, val)}
               disabled={isRunning}
             />
           ) : (

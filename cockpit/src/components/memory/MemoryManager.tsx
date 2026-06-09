@@ -21,7 +21,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -793,10 +793,10 @@ export function MemoryManager({
               already know. You review and accept.
             </DialogDescription>
           </DialogHeader>
-          <Textarea
+          <VoiceTextarea
             rows={6}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onValueChange={setText}
             placeholder="Paste notes, an email, a bio, a glossary…"
             disabled={busy}
           />

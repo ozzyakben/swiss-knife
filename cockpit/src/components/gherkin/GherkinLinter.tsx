@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -62,12 +62,12 @@ export function GherkinLinter() {
       </p>
 
       <div className="mt-6">
-        <Textarea
+        <VoiceTextarea
           rows={12}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onValueChange={setText}
           placeholder="Paste a .feature file…"
-          className="font-mono text-sm"
+          textareaClassName="font-mono text-sm"
           disabled={busy}
         />
         <div className="mt-2 flex gap-2">

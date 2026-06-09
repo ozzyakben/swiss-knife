@@ -5,7 +5,7 @@ import { AiToolShell } from "@/components/tools/AiToolShell";
 export default function PromptOptimizerPage() {
   return (
     <AiToolShell
-      title="✨ Prompt Optimizer"
+      title="Prompt Optimizer"
       description="Rewrite a rough prompt into a sharp one using local Gemma."
       endpoint="/api/optimize"
       placeholder="Paste a rough prompt here..."
