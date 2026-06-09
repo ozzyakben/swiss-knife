@@ -15,6 +15,8 @@ export type UseAiToolReturn = {
   status: AiToolStatus;
   error: string | null;
   isRunning: boolean;
+  /** Milliseconds elapsed on the current/last run — surfaces cold-load latency. */
+  elapsedMs: number;
   /** Returns true on a clean completion (used to flash "saved"). */
   run: (input: string, extra?: Record<string, unknown>) => Promise<boolean>;
   stop: () => void;
@@ -25,13 +27,19 @@ export function useAiTool({ endpoint, buildBody }: UseAiToolOptions): UseAiToolR
   const [output, setOutput] = useState("");
   const [status, setStatus] = useState<AiToolStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const run = useCallback(
     async (input: string, extra?: Record<string, unknown>): Promise<boolean> => {
       setOutput("");
       setError(null);
       setStatus("streaming");
+      setElapsedMs(0);
+      const startedAt = Date.now();
+      if (timerRef.current) clearInterval(timerRef.current);
+      timerRef.current = setInterval(() => setElapsedMs(Date.now() - startedAt), 250);
       const ctrl = new AbortController();
       abortRef.current = ctrl;
       try {
@@ -81,6 +89,10 @@ export function useAiTool({ endpoint, buildBody }: UseAiToolOptions): UseAiToolR
         return false;
       } finally {
         abortRef.current = null;
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
       }
     },
     [endpoint, buildBody]
@@ -91,7 +103,8 @@ export function useAiTool({ endpoint, buildBody }: UseAiToolOptions): UseAiToolR
     setOutput("");
     setError(null);
     setStatus("idle");
+    setElapsedMs(0);
   }, []);
 
-  return { output, status, error, isRunning: status === "streaming", run, stop, reset };
+  return { output, status, error, isRunning: status === "streaming", elapsedMs, run, stop, reset };
 }

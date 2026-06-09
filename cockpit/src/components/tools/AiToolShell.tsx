@@ -41,10 +41,11 @@ export function AiToolShell({
   savedMessage = "Saved to library",
 }: AiToolShellProps) {
   const [input, setInput] = useState("");
-  const { output, status, error, isRunning, run, stop } = useAiTool({
+  const { output, status, error, isRunning, elapsedMs, run, stop } = useAiTool({
     endpoint,
     buildBody: (i, extra) => buildBody(i, { save: Boolean(extra?.save) }),
   });
+  const secs = Math.round(elapsedMs / 1000);
 
   async function handleRun(save: boolean) {
     const ok = await run(input, { save });
@@ -67,7 +68,7 @@ export function AiToolShell({
 
       <div className="mt-3 flex flex-wrap gap-2">
         <Button onClick={() => handleRun(false)} disabled={isRunning || !input.trim()}>
-          {isRunning ? "Running…" : runLabel}
+          {isRunning ? `Running… ${secs}s` : runLabel}
         </Button>
         {enableSave && (
           <Button
