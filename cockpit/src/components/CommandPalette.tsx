@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, CornerDownLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { VoiceButton } from "@/components/tools/VoiceButton";
 import type { SearchResult } from "@/app/api/search/route";
 
 // Static "jump to" destinations. The palette filters these by the query and
@@ -185,6 +186,7 @@ export function CommandPalette() {
             placeholder="Search prompts, tasks, facts, QA… or jump to a tool"
             className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
+          <VoiceButton onText={(t) => setQ(t)} />
           <kbd className="hidden rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:inline">
             {IS_MAC ? "⌘K" : "Ctrl K"}
           </kbd>
