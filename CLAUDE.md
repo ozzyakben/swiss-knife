@@ -49,7 +49,7 @@ Two chat tiers, switchable live in **Settings → Model** (a picker that lists i
 
 ## Run / dev
 
-- Full stack (Docker): `./start.sh` → cockpit at :3000, Open WebUI at :3001 (pulls the model first).
+- Full stack (Docker): `./swiss up` → cockpit at :3000, Open WebUI at :3001 (pulls the models first). `./swiss down|status|doctor` stop/inspect/diagnose; `doctor` verifies the Ollama APP-vs-formula rule (llama-server probe), models, Docker, surfaces, and optional voice deps. `./start.sh` is a legacy wrapper for `./swiss up`.
 - Local cockpit dev: `cd cockpit && npm install && npm run db:push && npm run dev`.
 - Quality gates: `npm run lint` (ESLint flat config), `npm run test:unit` (Vitest — deterministic libs: cosine/jaccard/lintGherkin/normalizeCategory/parseVerdict/…, scoped to `src/**/*.test.ts`), and `npm run test:e2e` (Playwright). The e2e are model-independent (route-mocked), so they pass without Ollama; the unit tests are the real regression net for the deterministic gates.
 - The app degrades gracefully when Ollama is absent (health banner + 503 with guidance), so most of it can be built and tested without the model running.

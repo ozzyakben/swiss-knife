@@ -22,33 +22,44 @@ natively (full Metal/GPU acceleration) and the containers reach it via
 ## Prerequisites (one-time, per machine)
 
 1. **Docker Desktop** — https://www.docker.com/products/docker-desktop/
-2. **Ollama (native)** — `brew install ollama` or https://ollama.com/download
+2. **Ollama (native, the official app)** — `brew install --cask ollama-app` or https://ollama.com/download
+
+> ⚠️ **Not** `brew install ollama`. The Homebrew *formula*'s bottle ships without
+> the `llama-server` runner, so GGUF models (`gemma4:e4b` and anything you
+> `ollama pull` from the library) fail with "llama-server binary not found".
+> The official **app** bundles every runner (GGUF + MLX). Already on the
+> formula? `brew uninstall ollama && brew install --cask ollama-app`
+> (pulled models in `~/.ollama` are kept).
 
 That's all your colleagues need too.
 
 ---
 
-## Run it (one command)
+## Run it (two commands, total)
 
 ```bash
-./start.sh
+./swiss up      # start everything
+./swiss down    # stop the containers when you're done
 ```
 
-This will:
-1. Start the native Ollama server if it isn't already running.
-2. Pull `gemma4:12b-mlx` (and the embedding model for the future knowledge base).
-3. Build & launch the cockpit + Open WebUI containers.
-
+`up` starts the native Ollama app if needed, pulls both model tiers plus the
+embedder, then builds & launches the cockpit + Open WebUI containers.
 Then open **http://localhost:3000**.
 
-Stop everything: `docker compose down`
+Also there for you:
 
-> First run downloads the Gemma model (~10 GB) and builds the cockpit image,
-> so it takes a few minutes. Subsequent runs are fast.
+```bash
+./swiss status  # one-line state of engine / cockpit / Open WebUI / Docker
+./swiss doctor  # full preflight with fix-it commands (run this first on a new machine)
+```
 
-> **Model note:** `gemma4:12b-mlx` is the Apple-Silicon (MLX) build — a dense 12B
-> with image input, function calling, and a 256K context window. To use a
-> different tag, set `OLLAMA_MODEL` or change it on the in-app **Settings** page.
+> First run downloads the models (~14 GB for both tiers) and builds the cockpit
+> image, so it takes a few minutes. Subsequent runs are fast.
+
+> **Model note:** two chat tiers, switchable live in **Settings → Model**:
+> `gemma4:e4b` (light default, vision-capable, ~4 GB RAM) and `gemma4:12b-mlx`
+> (quality tier, Apple-Silicon MLX, 256K context, ~10–14 GB RAM, no vision).
+> Set `OLLAMA_MODEL` or use the in-app picker to switch.
 
 ---
 

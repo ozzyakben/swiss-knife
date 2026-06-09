@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# Swiss Knife ops CLI — one command to run, stop, inspect, and diagnose the stack.
+#
+#   ./swiss up       start everything: native Ollama (official app) + models + containers
+#   ./swiss down     stop the containers (native Ollama keeps running)
+#   ./swiss status   one-line state of engine / cockpit / Open WebUI / Docker
+#   ./swiss doctor   full preflight with fix-it commands
+#
+# Hard rule encoded here: Ollama must be the official macOS APP
+# (brew install --cask ollama-app). The Homebrew FORMULA's bottle ships without
+# the llama-server runner, so GGUF models (gemma4:e4b and anything from the
+# library) fail with "llama-server binary not found".
+set -euo pipefail
+cd "$(dirname "$0")"
+
+ENGINE_URL="http://localhost:11434"
+COCKPIT_URL="http://localhost:3000"
+OWUI_URL="http://localhost:3001"
+OLLAMA_APP="/Applications/Ollama.app"
+
+FAILS=0
+
+ok()   { printf "  \033[32m✓\033[0m %s\n" "$1"; }
+bad()  { printf "  \033[31m✗\033[0m %s\n" "$1"; if [ -n "${2:-}" ]; then printf "    \033[2m→ %s\033[0m\n" "$2"; fi; FAILS=$((FAILS + 1)); }
+note() { printf "  \033[33m!\033[0m %s\n" "$1"; if [ -n "${2:-}" ]; then printf "    \033[2m→ %s\033[0m\n" "$2"; fi; }
+say()  { printf "\033[1m%s\033[0m\n" "$1"; }
+
+engine_up()      { curl -fsS --max-time 3 "$ENGINE_URL/api/tags" >/dev/null 2>&1; }
+engine_tags()    { curl -fsS --max-time 3 "$ENGINE_URL/api/tags" 2>/dev/null || true; }
+model_pulled()   { engine_tags | grep -q "\"$1"; }
+docker_up()      { docker info >/dev/null 2>&1; }
+cockpit_health() { curl -fsS --max-time 3 "$COCKPIT_URL/api/health" 2>/dev/null || true; }
+cockpit_responds() { [ -n "$(cockpit_health)" ]; }
+owui_code()      { curl -s -o /dev/null -w "%{http_code}" --max-time 3 "$OWUI_URL" 2>/dev/null || echo "000"; }
+owui_responds()  { case "$(owui_code)" in 2*|3*) return 0 ;; *) return 1 ;; esac; }
+
+wait_for() { # wait_for <seconds> <check-fn>
+  local seconds=$1 fn=$2 i
+  for i in $(seq 1 "$seconds"); do
+    if "$fn"; then return 0; fi
+    sleep 1
+  done
+  return 1
+}
+
+cmd_doctor() {
+  say "Swiss Knife doctor"
+  echo
+  say "Engine install (must be the official Ollama APP, not the brew formula)"
+  if [ -d "$OLLAMA_APP" ]; then
+    ok "Official Ollama app installed"
+    if [ -f "$OLLAMA_APP/Contents/Resources/llama-server" ]; then
+      ok "llama-server runner present (GGUF models can load)"
+    else
+      bad "llama-server runner missing from the app bundle" "brew reinstall --cask ollama-app"
+    fi
+  else
+    bad "Official Ollama app not found" "brew install --cask ollama-app  (NOT 'brew install ollama' — the formula has no llama-server, GGUF models fail)"
+  fi
+  if command -v brew >/dev/null 2>&1 && brew list --formula 2>/dev/null | grep -qx ollama; then
+    bad "Homebrew ollama FORMULA installed — no llama-server in its bottle; it shadows the app's CLI" "brew uninstall ollama && brew install --cask ollama-app"
+  else
+    ok "No broken Homebrew ollama formula"
+  fi
+
+  echo
+  say "Engine runtime"
+  if engine_up; then
+    ok "Ollama serving on :11434"
+    local m
+    for m in "gemma4:e4b" "embeddinggemma"; do
+      if model_pulled "$m"; then ok "model $m pulled"; else bad "model $m not pulled" "ollama pull $m  (or just: ./swiss up)"; fi
+    done
+    if model_pulled "gemma4:12b-mlx"; then
+      ok "model gemma4:12b-mlx pulled (quality tier)"
+    else
+      note "model gemma4:12b-mlx not pulled (optional quality tier)" "ollama pull gemma4:12b-mlx"
+    fi
+  else
+    bad "Ollama isn't serving on :11434" "open -a Ollama  (or: ./swiss up)"
+  fi
+
+  echo
+  say "Docker"
+  if docker_up; then
+    ok "Docker daemon running"
+    local running
+    running=$(docker compose ps --status running --services 2>/dev/null || true)
+    if echo "$running" | grep -qx cockpit; then ok "cockpit container running"; else note "cockpit container not running" "./swiss up"; fi
+    if echo "$running" | grep -qx open-webui; then ok "open-webui container running"; else note "open-webui container not running" "./swiss up"; fi
+  else
+    bad "Docker daemon isn't running" "start Docker Desktop, then: ./swiss up"
+  fi
+
+  echo
+  say "Surfaces"
+  local h
+  h=$(cockpit_health)
+  if echo "$h" | grep -q '"ok":true'; then
+    ok "Cockpit healthy at $COCKPIT_URL"
+  elif [ -n "$h" ]; then
+    bad "Cockpit is up but unhealthy: $h" "fix the engine findings above, then refresh"
+  else
+    note "Cockpit not responding on :3000" "./swiss up  (Docker)  ·  or local dev: cd cockpit && npm run dev"
+  fi
+  if owui_responds; then
+    ok "Open WebUI responding at $OWUI_URL"
+  else
+    note "Open WebUI not responding on :3001" "./swiss up  (first boot downloads its embedder — give it a few minutes)"
+  fi
+
+  echo
+  say "Voice capture (optional)"
+  if command -v "${WHISPER_BIN:-whisper-cli}" >/dev/null 2>&1 && command -v "${FFMPEG_BIN:-ffmpeg}" >/dev/null 2>&1; then
+    ok "whisper-cli + ffmpeg installed"
+  else
+    note "whisper-cli / ffmpeg missing — voice capture stays off (everything else works)" "brew install whisper-cpp ffmpeg"
+  fi
+  if [ -f "${WHISPER_MODEL:-$HOME/.cache/whisper/ggml-base.en.bin}" ]; then
+    ok "whisper model present"
+  else
+    note "whisper model missing" "mkdir -p ~/.cache/whisper && curl -L -o ~/.cache/whisper/ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+  fi
+
+  echo
+  if [ "$FAILS" -eq 0 ]; then
+    say "Everything required looks good."
+  else
+    say "$FAILS problem(s) found — fixes are listed above."
+    exit 1
+  fi
+}
+
+cmd_status() {
+  if engine_up; then
+    local count
+    count=$(engine_tags | grep -o '"name"' | wc -l | tr -d ' ')
+    ok "Engine      up on :11434 ($count models pulled)"
+  else
+    bad "Engine      down" "open -a Ollama  (or: ./swiss up)"
+  fi
+
+  local h
+  h=$(cockpit_health)
+  if echo "$h" | grep -q '"ok":true'; then
+    ok "Cockpit     $COCKPIT_URL"
+  elif [ -n "$h" ]; then
+    note "Cockpit     up, but engine unhealthy ($(echo "$h" | grep -o '"reason":"[^"]*"' | head -1 || true))" "./swiss doctor"
+  else
+    bad "Cockpit     down" "./swiss up"
+  fi
+
+  if owui_responds; then
+    ok "Open WebUI  $OWUI_URL"
+  else
+    bad "Open WebUI  down" "./swiss up"
+  fi
+
+  if docker_up; then
+    ok "Docker      daemon running"
+  else
+    bad "Docker      daemon down" "start Docker Desktop"
+  fi
+
+  [ "$FAILS" -eq 0 ] || exit 1
+}
+
+cmd_up() {
+  say "▶ Swiss Knife up"
+
+  # 1) Engine — native, official app (GGUF needs its bundled llama-server).
+  if ! engine_up; then
+    if [ -d "$OLLAMA_APP" ]; then
+      echo "  starting the Ollama app…"
+      open -a Ollama
+      if ! wait_for 30 engine_up; then
+        bad "Ollama didn't come up on :11434 within 30s" "./swiss doctor"
+        exit 1
+      fi
+    elif command -v ollama >/dev/null 2>&1; then
+      # Fallback for non-app installs (e.g. Linux). On macOS the brew formula
+      # breaks GGUF — doctor will flag it.
+      echo "  Ollama app not found; starting 'ollama serve' (run ./swiss doctor to vet this install)…"
+      nohup ollama serve >/tmp/swissknife-ollama.log 2>&1 &
+      if ! wait_for 20 engine_up; then
+        bad "Ollama didn't start" "./swiss doctor"
+        exit 1
+      fi
+    else
+      bad "Ollama isn't installed" "brew install --cask ollama-app  (NOT the brew formula)"
+      exit 1
+    fi
+  fi
+  ok "engine up on :11434"
+
+  # 2) Models (light + quality tiers + the embedder).
+  bash scripts/pull-models.sh
+
+  # 3) Containers.
+  if ! docker_up; then
+    bad "Docker daemon isn't running" "start Docker Desktop, then re-run: ./swiss up"
+    exit 1
+  fi
+  echo "  building & starting containers…"
+  docker compose up -d --build
+
+  # 4) Wait for the surfaces (OWUI's first boot downloads an embedder — minutes).
+  if wait_for 90 cockpit_responds; then ok "cockpit responding"; else note "cockpit still starting" "./swiss status in a minute"; fi
+  if wait_for 30 owui_responds; then ok "open webui responding"; else note "open webui still starting (first boot is slow)" "./swiss status in a few minutes"; fi
+
+  echo
+  say "✅ Swiss Knife is running"
+  echo "   Cockpit:     $COCKPIT_URL"
+  echo "   Open WebUI:  $OWUI_URL"
+  echo "   Stop:        ./swiss down    Inspect: ./swiss status · ./swiss doctor"
+}
+
+cmd_down() {
+  say "▶ Swiss Knife down"
+  docker compose down
+  ok "containers stopped"
+  echo "  The native Ollama app keeps running (it's your system engine) — quit it from the menu bar if you want."
+}
+
+usage() {
+  cat <<'EOF'
+Swiss Knife — local AI cockpit
+
+  ./swiss up       start everything: native Ollama (official app) + models + containers
+  ./swiss down     stop the containers (native Ollama keeps running)
+  ./swiss status   one-line state of engine / cockpit / Open WebUI / Docker
+  ./swiss doctor   full preflight: install type, llama-server runner, models,
+                   Docker, surfaces, optional voice deps — with fix-it commands
+EOF
+}
+
+case "${1:-help}" in
+  up)     cmd_up ;;
+  down)   cmd_down ;;
+  status) cmd_status ;;
+  doctor) cmd_doctor ;;
+  help|-h|--help) usage ;;
+  *) printf "unknown command: %s\n\n" "$1"; usage; exit 1 ;;
+esac
