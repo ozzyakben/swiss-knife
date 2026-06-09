@@ -33,6 +33,8 @@ export function CommandPalette() {
   const [q, setQ] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [active, setActive] = useState(0);
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [asking, setAsking] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -89,10 +91,14 @@ export function CommandPalette() {
       ...navMatches.map((n) => ({ kind: "nav" as const, label: n.label, badge: "Go", href: n.href })),
       ...live.map((r) => ({ kind: "result" as const, label: r.title, sub: r.subtitle, badge: r.type, href: r.href })),
     ];
-    // Natural-language quick-add escape hatch: file any typed note as the right
-    // kind (task/fact/idea) via the model, from anywhere.
+    // Fallthrough actions: ask Gemma a one-shot question, or file the text as the
+    // right kind (task/fact/idea) — both from anywhere, no mouse.
     if (term.length >= 3) {
-      return [...base, { kind: "add" as const, label: `Add “${term}”…`, badge: "New", href: "" }];
+      return [
+        ...base,
+        { kind: "ask" as const, label: `Ask “${term}”`, badge: "Ask", href: "" },
+        { kind: "add" as const, label: `Add “${term}”…`, badge: "New", href: "" },
+      ];
     }
     return base;
   }, [navMatches, results, q]);
@@ -136,12 +142,32 @@ export function CommandPalette() {
     [router]
   );
 
+  const ask = useCallback(async (question: string) => {
+    setAsking(true);
+    setAnswer(null);
+    try {
+      const res = await fetch("/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ q: question }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setAnswer(data.text || "(no answer)");
+    } catch (e) {
+      setAnswer(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setAsking(false);
+    }
+  }, []);
+
   const run = useCallback(
     (it: { kind: string; href: string }) => {
       if (it.kind === "add") quickAdd(q.trim());
+      else if (it.kind === "ask") ask(q.trim());
       else go(it.href);
     },
-    [go, quickAdd, q]
+    [go, quickAdd, ask, q]
   );
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -164,6 +190,7 @@ export function CommandPalette() {
       onOpenChange={(o) => {
         setOpen(o);
         setActive(0);
+        setAnswer(null);
         if (!o) setQ("");
       }}
     >
@@ -181,6 +208,7 @@ export function CommandPalette() {
             onChange={(e) => {
               setQ(e.target.value);
               setActive(0);
+              setAnswer(null);
             }}
             onKeyDown={onKeyDown}
             placeholder="Search prompts, tasks, facts, QA… or jump to a tool"
@@ -218,6 +246,16 @@ export function CommandPalette() {
             ))
           )}
         </div>
+
+        {(asking || answer) && (
+          <div className="max-h-48 overflow-y-auto border-t border-border p-3 text-sm">
+            {asking ? (
+              <p className="text-muted-foreground">Thinking…</p>
+            ) : (
+              <p className="whitespace-pre-wrap">{answer}</p>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-3 border-t border-border px-3 py-1.5 text-[10px] text-muted-foreground">
           <span>↑↓ navigate</span>
