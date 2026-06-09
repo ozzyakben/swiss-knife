@@ -6,7 +6,9 @@ import { test, expect } from "@playwright/test";
 test.describe("cockpit foundation", () => {
   test("dashboard renders with navigation", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /good (morning|afternoon|evening)|working late/i })
+    ).toBeVisible();
     // Sidebar nav links (exact, to avoid matching the dashboard card link).
     await expect(page.getByRole("link", { name: "Prompt Optimizer", exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Settings", exact: true })).toBeVisible();

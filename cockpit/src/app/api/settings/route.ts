@@ -20,6 +20,7 @@ export async function PUT(req: Request) {
     temperature?: number | string;
     theme?: string;
     owuiApiKey?: string;
+    userName?: string;
   };
 
   const norm = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -48,6 +49,7 @@ export async function PUT(req: Request) {
   }
   if ("temperature" in body) data.temperature = temp;
   if (typeof body.theme === "string" && body.theme) data.theme = body.theme;
+  if ("userName" in body) data.userName = norm(body.userName)?.slice(0, 60) ?? null;
   if (typeof body.owuiApiKey === "string") data.owuiApiKey = body.owuiApiKey.trim() || null;
 
   await prisma.settings.upsert({

@@ -1,3 +1,4 @@
+import { prisma } from "@/lib/db";
 import { getEffectiveConfig, DEFAULTS } from "@/lib/config";
 import { checkHealth } from "@/lib/health";
 import { SettingsForm } from "@/components/SettingsForm";
@@ -11,6 +12,9 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const [config, health] = await Promise.all([getEffectiveConfig(), checkHealth()]);
+  const row = await prisma.settings
+    .findUnique({ where: { id: "singleton" }, select: { userName: true } })
+    .catch(() => null);
 
   return (
     <div className="max-w-2xl">
@@ -24,7 +28,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="mt-6">
-        <SettingsForm initialConfig={config} defaults={DEFAULTS} />
+        <SettingsForm initialConfig={config} defaults={DEFAULTS} initialUserName={row?.userName ?? null} />
       </div>
 
       <div className="mt-10 border-t border-border pt-6">

@@ -36,10 +36,13 @@ const CUSTOM = "__custom__";
 export function SettingsForm({
   initialConfig,
   defaults,
+  initialUserName = null,
 }: {
   initialConfig: Config;
   defaults: Config;
+  initialUserName?: string | null;
 }) {
+  const [userName, setUserName] = useState(initialUserName ?? "");
   const [model, setModel] = useState(initialConfig.model);
   const [qaModel, setQaModel] = useState(initialConfig.qaModel ?? "");
   const [baseUrl, setBaseUrl] = useState(initialConfig.baseUrl);
@@ -108,7 +111,7 @@ export function SettingsForm({
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, qaModel, baseUrl, temperature: Number(temperature) }),
+        body: JSON.stringify({ model, qaModel, baseUrl, temperature: Number(temperature), userName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
@@ -122,6 +125,17 @@ export function SettingsForm({
 
   return (
     <div className="space-y-5">
+      <div className="space-y-1.5">
+        <Label htmlFor="userName">Your name</Label>
+        <Input
+          id="userName"
+          className="max-w-xs"
+          value={userName}
+          onChange={(e) => setUserName(e.target.value)}
+          placeholder="(optional — used in the dashboard greeting)"
+        />
+      </div>
+
       <div className="space-y-1.5">
         <Label htmlFor="model">Model</Label>
         <Select value={selectValue} onValueChange={onSelect}>

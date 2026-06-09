@@ -35,11 +35,15 @@ export function ProjectSwitcher({
 
   return (
     <Select value={activeId ?? NONE} onValueChange={change}>
-      <SelectTrigger className="h-8 text-xs" aria-label="Active project">
-        <SelectValue placeholder="No project" />
+      <SelectTrigger
+        className="h-8 text-xs"
+        aria-label="Active project"
+        title="New work is filed under the active project. With no project, it lands in the shared global space."
+      >
+        <SelectValue placeholder="No project — global" />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value={NONE}>No project</SelectItem>
+        <SelectItem value={NONE}>No project — global</SelectItem>
         {projects.map((p) => (
           <SelectItem key={p.id} value={p.id}>
             {p.name}
