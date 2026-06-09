@@ -7,7 +7,7 @@
 // is injected via the project's memory facts.
 
 import { prisma } from "@/lib/db";
-import { chat, type ChatMessage } from "@/lib/ollama";
+import { chat, chatJson, type ChatMessage } from "@/lib/ollama";
 import { getEffectiveConfig } from "@/lib/config";
 import { getMemoryContext } from "@/lib/memory";
 import { renderTemplate } from "@/lib/templates";
@@ -29,7 +29,18 @@ export type QaContext = {
   hasGlossary: boolean;
 };
 
-export type RubricScore = { raw: string; verdict: "PASS" | "BLOCK" | "UNKNOWN" };
+export type RubricScore = { raw: string; verdict: "PASS" | "BLOCK" | "UNKNOWN"; score?: number | null };
+
+// Reliable, additive read of the rubric: extract verdict + a 0-100 score FROM
+// the template's free-text evaluation, without changing what the template emits.
+const VERDICT_SCHEMA = {
+  type: "object",
+  properties: {
+    verdict: { type: "string", enum: ["PASS", "BLOCK"] },
+    score: { type: "integer", minimum: 0, maximum: 100 },
+  },
+  required: ["verdict", "score"],
+};
 
 export type IterationResult = {
   draftFeature: string;
@@ -75,6 +86,31 @@ function parseVerdict(raw: string): RubricScore["verdict"] {
   if (/verdict:\s*pass/i.test(raw)) return "PASS";
   if (/verdict:\s*block/i.test(raw)) return "BLOCK";
   return "UNKNOWN";
+}
+
+/** Read verdict + a 0-100 score from the rubric text (reliable; regex fallback). */
+async function extractVerdict(
+  raw: string,
+  opts: { model: string; baseUrl: string; temperature: number }
+): Promise<{ verdict: RubricScore["verdict"]; score: number | null }> {
+  try {
+    const out = await chatJson<{ verdict: "PASS" | "BLOCK"; score: number }>(
+      [
+        {
+          role: "system",
+          content:
+            "Read this QA rubric evaluation and report its final verdict and an overall 0-100 quality score. If it is not clearly a pass, the verdict is BLOCK.",
+        },
+        { role: "user", content: raw },
+      ],
+      VERDICT_SCHEMA,
+      { ...opts, temperature: 0 }
+    );
+    const score = typeof out.score === "number" ? Math.max(0, Math.min(100, Math.round(out.score))) : null;
+    return { verdict: out.verdict === "PASS" ? "PASS" : "BLOCK", score };
+  } catch {
+    return { verdict: parseVerdict(raw), score: null };
+  }
 }
 
 async function chatOpts() {
@@ -145,8 +181,10 @@ export async function scoreFeature(
   if (!ctx.rubricTemplate) throw new Error("QA pack not loaded for this project.");
   const memory = await getMemoryContext({ projectId, query: draftFeature });
   const instruction = renderTemplate(ctx.rubricTemplate.body, { artifact: draftFeature });
-  const raw = await chat(withMemory(memory, instruction), await chatOpts());
-  return { raw: raw.trim(), verdict: parseVerdict(raw) };
+  const opts = await chatOpts();
+  const raw = await chat(withMemory(memory, instruction), opts);
+  const { verdict, score } = await extractVerdict(raw, opts);
+  return { raw: raw.trim(), verdict, score };
 }
 
 /** Full first iteration: draft from the story, then lint + score. */

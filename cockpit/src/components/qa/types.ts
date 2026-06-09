@@ -11,7 +11,7 @@ export type Lint = {
 };
 
 export type Verdict = "PASS" | "BLOCK" | "UNKNOWN";
-export type Rubric = { raw: string; verdict: Verdict } | null;
+export type Rubric = { raw: string; verdict: Verdict; score?: number | null } | null;
 
 export type Iteration = {
   id: string;

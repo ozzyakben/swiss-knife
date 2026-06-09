@@ -82,6 +82,7 @@ export function QaIterationCard({ iteration: it, onEditDraft, onRescore, onDelet
             }
           >
             rubric {rubric ? rubric.verdict : "STALE"}
+            {rubric && typeof rubric.score === "number" ? ` · ${rubric.score}/100` : ""}
           </Badge>
         </div>
       </CardHeader>
