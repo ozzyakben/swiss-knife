@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getActiveProjectId } from "@/lib/project";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ProjectSwitcher } from "@/components/ProjectSwitcher";
+import { CommandHint } from "@/components/CommandHint";
 
 const tools = [
   { href: "/", label: "Dashboard" },
@@ -39,8 +40,12 @@ export default async function Sidebar() {
         <ThemeToggle />
       </div>
 
-      <div className="mb-4">
+      <div className="mb-3">
         <ProjectSwitcher projects={projects} activeId={activeId} />
+      </div>
+
+      <div className="mb-4">
+        <CommandHint />
       </div>
 
       <nav className="flex flex-col gap-1">
