@@ -150,3 +150,74 @@ describe("analyzeCoverage", () => {
     expect(c.gaps).toEqual([]);
   });
 });
+
+describe("lintGherkin — more gate rules", () => {
+  it("ERRORs when there is no Feature: declaration", () => {
+    const r = lintGherkin(`@valid @smoke
+Scenario: Orphan
+  Given a Thing [t1]
+  When x
+  Then y
+`);
+    expect(r.ok).toBe(false);
+    expect(r.issues.some((i) => i.severity === "ERROR" && /No .Feature:./.test(i.message))).toBe(true);
+  });
+
+  it("WARNs on a Given duplicated across scenarios (move to Background)", () => {
+    const r = lintGherkin(`Feature: F
+  desc
+
+  @valid @smoke
+  Scenario: A
+    Given a shared precondition
+    When x
+    Then y
+
+  @valid @smoke
+  Scenario: B
+    Given a shared precondition
+    When z
+    Then w
+`);
+    expect(r.issues.some((i) => /move to Background/.test(i.message))).toBe(true);
+  });
+
+  it("WARNs when a scenario has an intent tag but no suite tag", () => {
+    const r = lintGherkin(`Feature: F
+  desc
+
+  @valid
+  Scenario: No suite
+    Given a Thing [t1]
+    When x
+    Then y
+`);
+    expect(r.issues.some((i) => i.severity === "WARN" && /suite tag/.test(i.message))).toBe(true);
+  });
+
+  it("WARNs on a non-standard tag", () => {
+    const r = lintGherkin(`Feature: F
+  desc
+
+  @valid @smoke @bogustag
+  Scenario: Weird tag
+    Given a Thing [t1]
+    When x
+    Then y
+`);
+    expect(r.issues.some((i) => i.severity === "WARN" && /non-standard tag/.test(i.message))).toBe(true);
+  });
+
+  it("WARNs on a non-click implementation leak (raw SQL)", () => {
+    const r = lintGherkin(`Feature: F
+  desc
+
+  @valid @smoke
+  Scenario: SQL leak
+    Given a Thing [t1]
+    When the system runs SELECT * from orders
+    Then it is done
+`);
+    expect(r.issues.some((i) => /raw SQL/.test(i.message))).toBe(true);
+  });
+});

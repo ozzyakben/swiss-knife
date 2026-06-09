@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { cosine, parseVector } from "@/lib/embeddings";
+import { cosine, parseVector, serializeVector } from "@/lib/embeddings";
+
+describe("serializeVector / parseVector round-trip", () => {
+  it("parseVector(serializeVector(v)) deep-equals v (the storage contract)", () => {
+    const v = [0.1, -2, 3.5, 0];
+    expect(parseVector(serializeVector(v))).toEqual(v);
+  });
+});
 
 describe("cosine", () => {
   it("is 1 for identical vectors", () => {

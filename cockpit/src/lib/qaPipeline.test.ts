@@ -19,6 +19,9 @@ describe("parseVerdict", () => {
   it("is driven by the verdict line, not prose: prose 'passes' + 'Verdict: BLOCK' -> BLOCK", () => {
     expect(parseVerdict("The feature passes most checks.\nVerdict: BLOCK")).toBe("BLOCK");
   });
+  it("checks BLOCK first: a stray 'verdict: pass…' substring can't beat a real BLOCK", () => {
+    expect(parseVerdict("verdict: pass-criteria not met.\nVerdict: BLOCK")).toBe("BLOCK");
+  });
 });
 
 describe("stripFences", () => {
