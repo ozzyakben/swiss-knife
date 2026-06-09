@@ -39,6 +39,19 @@ const HEADERS = {
   Authorization: "Bearer ollama", // required by the protocol but unused by Ollama
 };
 
+// A hung engine (accepts the socket but never responds) would otherwise pin a
+// request forever — the health gate only catches a fully-down engine. Bound every
+// call with a generous default, combined with any caller signal (client abort).
+// Generation is long for a local 12B, so the cap is high but finite; embeds are
+// quick. Both are env-tunable.
+const GEN_TIMEOUT_MS = Number(process.env.OLLAMA_TIMEOUT_MS) || 300_000;
+const EMBED_TIMEOUT_MS = Number(process.env.OLLAMA_EMBED_TIMEOUT_MS) || 60_000;
+
+function timeoutSignal(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const t = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, t]) : t;
+}
+
 /** One-shot, non-streaming completion. Returns the full message text. */
 export async function chat(
   messages: ChatMessage[],
@@ -49,7 +62,7 @@ export async function chat(
     headers: HEADERS,
     body: body(messages, opts, false),
     cache: "no-store",
-    signal: opts.signal,
+    signal: timeoutSignal(opts.signal, GEN_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Ollama error ${res.status}: ${await res.text().catch(() => "")}`);
@@ -72,7 +85,7 @@ export async function* streamChat(
     headers: HEADERS,
     body: body(messages, opts, true),
     cache: "no-store",
-    signal: opts.signal,
+    signal: timeoutSignal(opts.signal, GEN_TIMEOUT_MS),
   });
   if (!res.ok || !res.body) {
     throw new Error(`Ollama error ${res.status}: ${await res.text().catch(() => "")}`);
@@ -146,7 +159,7 @@ export async function chatWithImages(
     headers: HEADERS,
     body: visionBody(prompt, images, opts, false),
     cache: "no-store",
-    signal: opts.signal,
+    signal: timeoutSignal(opts.signal, GEN_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Ollama error ${res.status}: ${await res.text().catch(() => "")}`);
@@ -166,7 +179,7 @@ export async function* streamChatWithImages(
     headers: HEADERS,
     body: visionBody(prompt, images, opts, true),
     cache: "no-store",
-    signal: opts.signal,
+    signal: timeoutSignal(opts.signal, GEN_TIMEOUT_MS),
   });
   if (!res.ok || !res.body) {
     throw new Error(`Ollama error ${res.status}: ${await res.text().catch(() => "")}`);
@@ -223,7 +236,7 @@ export async function chatJson<T>(
       stream: false,
     }),
     cache: "no-store",
-    signal: opts.signal,
+    signal: timeoutSignal(opts.signal, GEN_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Ollama error ${res.status}: ${await res.text().catch(() => "")}`);
@@ -253,7 +266,7 @@ export async function embed(
     headers: HEADERS,
     body: JSON.stringify({ model: opts.model ?? "embeddinggemma", input }),
     cache: "no-store",
-    signal: opts.signal,
+    signal: timeoutSignal(opts.signal, EMBED_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Ollama embed error ${res.status}: ${await res.text().catch(() => "")}`);

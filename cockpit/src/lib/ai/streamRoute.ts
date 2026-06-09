@@ -31,9 +31,21 @@ export function streamTextResponse({
   memoryQuery,
 }: StreamTextArgs): Response {
   const encoder = new TextEncoder();
+  // Propagate a client disconnect (the consumer cancelling the stream) down to
+  // the Ollama fetch so a dropped request stops generating instead of running
+  // the 12B to completion for nobody.
+  const ac = new AbortController();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const safeEnqueue = (s: string) => {
+        try {
+          controller.enqueue(encoder.encode(s));
+        } catch {
+          /* client already gone */
+        }
+      };
+
       let full = "";
       try {
         const cfg = await getEffectiveConfig();
@@ -49,17 +61,41 @@ export function streamTextResponse({
           temperature: temperature ?? cfg.temperature,
           model: model ?? cfg.model,
           baseUrl: cfg.baseUrl,
+          signal: ac.signal,
         })) {
           full += token;
           controller.enqueue(encoder.encode(token));
         }
-        if (onComplete) await onComplete(full);
-        controller.close();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "stream failed";
-        controller.enqueue(encoder.encode(`\n${ERROR_SENTINEL} ${msg}`));
-        controller.close();
+        // A client-initiated abort is not an error to report — just close.
+        if (!ac.signal.aborted) {
+          const msg = err instanceof Error ? err.message : "stream failed";
+          safeEnqueue(`\n${ERROR_SENTINEL} ${msg}`);
+        }
+        try {
+          controller.close();
+        } catch {
+          /* already closed */
+        }
+        return;
       }
+
+      // Generation succeeded. Persist separately so a DB save failure is reported
+      // as a save problem (and the already-streamed draft is kept), not as a
+      // generation error that would discard the visible draft.
+      try {
+        if (onComplete) await onComplete(full);
+      } catch {
+        safeEnqueue("\n\n_(Couldn't save this to history — it's shown above only.)_");
+      }
+      try {
+        controller.close();
+      } catch {
+        /* already closed */
+      }
+    },
+    cancel() {
+      ac.abort();
     },
   });
 
