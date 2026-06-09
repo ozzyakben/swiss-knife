@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -28,6 +29,7 @@ export function HealthBanner({
   showWhenOk?: boolean;
 }) {
   const [health, setHealth] = useState<Health | null>(initial ?? null);
+  const wasDownRef = useRef(initial ? !initial.ok : false);
 
   useEffect(() => {
     let active = true;
@@ -35,7 +37,11 @@ export function HealthBanner({
       try {
         const res = await fetch("/api/health", { cache: "no-store" });
         const data = (await res.json()) as Health;
-        if (active) setHealth(data);
+        if (!active) return;
+        setHealth(data);
+        // The poll auto-recovers; confirm the moment the engine comes back.
+        if (data.ok && wasDownRef.current) toast.success("Engine reconnected");
+        wasDownRef.current = !data.ok;
       } catch {
         /* leave the last known state */
       }
@@ -70,8 +76,8 @@ export function HealthBanner({
       <AlertTitle>{isDown ? "Engine offline" : "Model not pulled"}</AlertTitle>
       <AlertDescription>
         {isDown
-          ? "Ollama isn't running. Start it with `ollama serve`, then reload."
-          : `The model "${health.model}" isn't pulled yet. Run: ollama pull ${health.model}`}
+          ? "Ollama isn't running. Start it with `ollama serve` — this clears automatically once it's back."
+          : `The model "${health.model}" isn't pulled yet. Run: ollama pull ${health.model} — this clears once it's ready.`}
       </AlertDescription>
     </Alert>
   );
