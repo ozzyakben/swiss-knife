@@ -5,7 +5,12 @@ import { RecentItems } from "@/components/RecentItems";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default async function EmailWriterPage() {
+export default async function EmailWriterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ draftId?: string }>;
+}) {
+  const { draftId } = await searchParams;
   const rows = await prisma.emailDraft
     .findMany({
       orderBy: { createdAt: "desc" },
@@ -14,7 +19,16 @@ export default async function EmailWriterPage() {
     })
     .catch(() => []);
 
-  const drafts = rows.map((d) => ({
+  // The ⌘K deep link may target a draft outside the recent slice.
+  let draftRows = rows;
+  if (draftId && !rows.some((r) => r.id === draftId)) {
+    const extra = await prisma.emailDraft
+      .findUnique({ where: { id: draftId }, include: { project: { select: { name: true } } } })
+      .catch(() => null);
+    if (extra) draftRows = [extra, ...draftRows];
+  }
+
+  const drafts = draftRows.map((d) => ({
     id: d.id,
     title: d.title || "Untitled draft",
     badges: [d.mode, d.tone, d.length],
@@ -31,6 +45,8 @@ export default async function EmailWriterPage() {
         items={drafts}
         deleteBase="/api/email"
         editBase="/api/email"
+        searchable
+        highlightId={draftId ?? null}
         editFields={[
           { key: "title", label: "Title" },
           { key: "body", label: "Body", multiline: true },

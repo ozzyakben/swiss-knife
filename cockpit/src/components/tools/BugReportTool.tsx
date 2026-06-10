@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
 
@@ -41,27 +41,56 @@ function toMarkdown(r: Report): string {
 export function BugReportTool() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [secs, setSecs] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  // The note that produced the current draft — save persists THIS pairing.
+  const lastRunNote = useRef("");
 
-  async function run(save: boolean) {
+  async function run() {
     if (!note.trim()) return;
     setBusy(true);
+    setSavedId(null);
+    setSecs(0);
+    lastRunNote.current = note;
+    const startedAt = Date.now();
+    const timer = setInterval(() => setSecs(Math.round((Date.now() - startedAt) / 1000)), 500);
     try {
       const res = await fetch("/api/bug-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note, save }),
+        body: JSON.stringify({ note }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed");
       setReport(data);
-      if (save && data.savedId) toast.success("Bug report saved");
-      else if (save && data.missing?.length)
-        toast.error(`Can't save — missing: ${data.missing.join(", ")}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
+      clearInterval(timer);
       setBusy(false);
+    }
+  }
+
+  // Save-after-run: persist EXACTLY the reviewed draft (no re-draft).
+  async function save() {
+    if (!report || report.missing.length > 0) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/bug-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: lastRunNote.current, report }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed");
+      setSavedId(data.savedId);
+      toast.success("Bug report saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -69,8 +98,8 @@ export function BugReportTool() {
     <div className="max-w-3xl">
       <h1 className="text-2xl font-semibold tracking-tight">Bug Report Writer</h1>
       <p className="mt-1 text-muted-foreground">
-        Paste a rough note. Gemma drafts a structured report (repro, expected, actual, severity) using
-        your project vocabulary, and gates it on completeness before saving.
+        Paste a rough note. Gemma drafts a structured report (repro, expected, actual, severity), a
+        deterministic gate checks completeness, and you save the draft you reviewed.
       </p>
 
       <VoiceTextarea
@@ -81,15 +110,12 @@ export function BugReportTool() {
         placeholder="e.g. POS partial ROA payment errors when amount is less than balance — should accept and apply oldest-invoice-first…"
         disabled={busy}
         onKeyDown={(e) => {
-          if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && note.trim() && !busy) run(false);
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && note.trim() && !busy) run();
         }}
       />
       <div className="mt-3 flex gap-2">
-        <Button onClick={() => run(false)} disabled={busy || !note.trim()}>
-          {busy ? "Drafting…" : "Draft report"}
-        </Button>
-        <Button variant="outline" onClick={() => run(true)} disabled={busy || !note.trim()}>
-          Draft &amp; save
+        <Button onClick={run} disabled={busy || !note.trim()}>
+          {busy ? `Drafting… ${secs}s` : "Draft report"}
         </Button>
       </div>
 
@@ -125,6 +151,11 @@ export function BugReportTool() {
                 <Button variant="ghost" size="sm" onClick={() => downloadText("bug-report.md", toMarkdown(report), "text/markdown")}>
                   Export
                 </Button>
+                {report.missing.length === 0 && (
+                  <Button variant="outline" size="sm" onClick={save} disabled={saving || !!savedId}>
+                    {savedId ? "Saved ✓" : saving ? "Saving…" : "Save report"}
+                  </Button>
+                )}
               </div>
             </div>
 

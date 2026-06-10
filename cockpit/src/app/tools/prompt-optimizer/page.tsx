@@ -11,9 +11,18 @@ export default function PromptOptimizerPage() {
       placeholder="Paste a rough prompt here..."
       runLabel="Optimize"
       outputLabel="Optimized prompt"
-      enableSave
-      saveLabel="Optimize & save to library"
-      buildBody={(prompt, { save }) => ({ prompt, save })}
+      buildBody={(prompt) => ({ prompt })}
+      onSaveResult={async (optimized, original) => {
+        const res = await fetch("/api/prompts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ original, optimized }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Couldn't save the prompt.");
+        }
+      }}
     />
   );
 }

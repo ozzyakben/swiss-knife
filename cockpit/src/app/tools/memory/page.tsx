@@ -6,7 +6,12 @@ import { getActiveProjectId } from "@/lib/project";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default async function MemoryPage() {
+export default async function MemoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
   // Decay runs on load (auto-archive policy): conservative + reversible.
   await archiveStaleFacts().catch(() => 0);
 
@@ -60,6 +65,12 @@ export default async function MemoryPage() {
   }));
 
   return (
-    <MemoryManager facts={facts} trashed={trashed} projects={projects} activeProjectId={activeProjectId} />
+    <MemoryManager
+      facts={facts}
+      trashed={trashed}
+      projects={projects}
+      activeProjectId={activeProjectId}
+      initialSearch={q ?? ""}
+    />
   );
 }

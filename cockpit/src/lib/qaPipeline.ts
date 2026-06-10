@@ -46,7 +46,8 @@ const VERDICT_SCHEMA = {
 export type IterationResult = {
   draftFeature: string;
   lint: GherkinLintResult;
-  rubric: RubricScore;
+  /** null = rubric scoring failed; the draft + lint are still good (STALE UI). */
+  rubric: RubricScore | null;
 };
 
 /**
@@ -202,6 +203,21 @@ export async function scoreFeature(
   return { raw: raw.trim(), verdict, score };
 }
 
+// A rubric-scoring hiccup must never throw away a completed multi-minute draft:
+// the iteration persists with rubric=null and the existing STALE/"Score now" UI
+// path picks it up.
+async function scoreOrNull(
+  draftFeature: string,
+  projectId: string | null,
+  ctx: QaContext
+): Promise<RubricScore | null> {
+  try {
+    return await scoreFeature(draftFeature, projectId, ctx);
+  } catch {
+    return null;
+  }
+}
+
 /** Full first iteration: draft from the story, then lint + score. */
 export async function runFreshIteration(
   story: string,
@@ -210,7 +226,7 @@ export async function runFreshIteration(
 ): Promise<IterationResult> {
   const draftFeature = await draftFromStory(story, projectId, ctx);
   const lint = lintFeature(draftFeature);
-  const rubric = await scoreFeature(draftFeature, projectId, ctx);
+  const rubric = await scoreOrNull(draftFeature, projectId, ctx);
   return { draftFeature, lint, rubric };
 }
 
@@ -224,7 +240,7 @@ export async function runFollowUpIteration(
 ): Promise<IterationResult> {
   const draftFeature = await draftFromFollowUp(story, previousDraft, instruction, projectId, ctx);
   const lint = lintFeature(draftFeature);
-  const rubric = await scoreFeature(draftFeature, projectId, ctx);
+  const rubric = await scoreOrNull(draftFeature, projectId, ctx);
   return { draftFeature, lint, rubric };
 }
 

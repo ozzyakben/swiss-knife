@@ -24,7 +24,34 @@ const NEST_ERROR = 6;
 const PARAMS_WARN = 5;
 const PARAMS_ERROR = 7;
 const DUP_WINDOW = 4; // consecutive significant lines
-const ALLOWED_NUMBERS = new Set(["0", "1", "2", "-1", "100"]);
+// Numbers that read as self-explanatory in real code: tiny constants, percent
+// base, HTTP status codes, and round powers of ten (ports/timeouts). The old
+// set (0/1/2/-1/100) made every `res.status(404)` a WARN — pure noise.
+const ALLOWED_NUMBERS = new Set([
+  "0", "1", "2", "-1", "100",
+  "200", "201", "204", "301", "302", "304", "400", "401", "403", "404", "409", "429", "500", "502", "503",
+  "10", "1000", "10000", "60", "24", "365",
+]);
+
+// Cheap foreign-language tells. The lexer is TS/JS-only; a Python or C# paste
+// used to run through it anyway and emit confident nonsense findings.
+const FOREIGN_TELLS: { re: RegExp; lang: string }[] = [
+  { re: /^\s*def \w+\(.*\)\s*(->.*)?:\s*$/m, lang: "Python" },
+  { re: /^\s*#include\s*[<"]/m, lang: "C/C++" },
+  { re: /\bpublic\s+(static\s+)?(void|class|final)\b/, lang: "Java/C#" },
+  { re: /^\s*package\s+[\w.]+\s*$/m, lang: "Go" },
+  { re: /^\s*fn\s+\w+\s*(<[^>]*>)?\(.*\)\s*(->|\{)/m, lang: "Rust" },
+  { re: /^\s*elif\b/m, lang: "Python" },
+  // Bare `end` on its own line only — `end: number;` / `end = i` are everyday
+  // TS (this file has one) and used to mislabel a correct scan as Ruby.
+  { re: /^\s*end\s*$/m, lang: "Ruby" },
+];
+
+/** Detect a paste that's clearly not TS/JS. Returns the language name or null. */
+export function detectForeignLanguage(code: string): string | null {
+  for (const t of FOREIGN_TELLS) if (t.re.test(code)) return t.lang;
+  return null;
+}
 
 const NOT_A_METHOD = new Set([
   "if", "for", "while", "switch", "catch", "return", "typeof", "else", "do",
@@ -485,6 +512,18 @@ export function scanCode(input: string): SmellResult {
   const issues: SmellIssue[] = [];
   let functions = 0;
   const isDiff = looksLikeDiff(input);
+
+  // A clearly-foreign paste gets one honest WARN up front instead of letting
+  // the TS/JS lexer emit confident nonsense below it.
+  const foreign = detectForeignLanguage(input);
+  if (foreign) {
+    issues.push({
+      severity: "WARN",
+      line: 1,
+      rule: "language",
+      message: `This looks like ${foreign} — the scanner only understands TS/JS, so findings below may be wrong.`,
+    });
+  }
 
   if (isDiff) {
     const hunks = parseDiffHunks(input);

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { getActiveProjectId } from "@/lib/project";
+import { embedDocuments, serializeVector } from "@/lib/embeddings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,15 @@ export async function POST(req: Request) {
     return Response.json({ error: "A fact needs a value." }, { status: 400 });
   }
   const projectId = await getActiveProjectId();
+  // Embed at create (best-effort) so manual facts relevance-rank immediately
+  // instead of waiting for a manual Reindex; null degrades to the reindex path.
+  let embedding: string | null = null;
+  try {
+    const [v] = await embedDocuments([value.trim()]);
+    embedding = serializeVector(v);
+  } catch {
+    embedding = null;
+  }
   const fact = await prisma.memoryFact.create({
     data: {
       key: typeof key === "string" && key.trim() ? key.trim() : null,
@@ -24,6 +34,7 @@ export async function POST(req: Request) {
       source: "manual",
       status: "active",
       projectId,
+      embedding,
     },
   });
   return Response.json({ fact });

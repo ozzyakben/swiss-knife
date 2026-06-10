@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Star, Pencil, Trash2, Download, Upload, Sparkles, Plus, Files } from "lucide-react";
 import { toast } from "sonner";
@@ -64,12 +64,23 @@ function tagList(tags: string | null): string[] {
 export function PromptLibrary({
   prompts,
   templates,
+  initialQuery = "",
 }: {
   prompts: LibPrompt[];
   templates: LibTemplate[];
+  /** Seed for the search box (the ⌘K search deep link: /tools/prompt-library?q=…). */
+  initialQuery?: string;
 }) {
   const router = useRouter();
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery);
+
+  // useState ignores a new initialQuery once mounted — a ⌘K result picked
+  // while already on this page must still update the search box.
+  useEffect(() => {
+    if (!initialQuery) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- prop-driven deep-link consume
+    setQ(initialQuery);
+  }, [initialQuery]);
   const [editing, setEditing] = useState<LibPrompt | null>(null);
   const [useTemplate, setUseTemplate] = useState<LibTemplate | null>(null);
   const [tmplSeed, setTmplSeed] = useState<TemplateSeed | null>(null);

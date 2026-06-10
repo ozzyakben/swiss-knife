@@ -7,6 +7,7 @@ import { Trash2, GripVertical, Pencil } from "lucide-react";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatDueDay } from "@/lib/dates";
 import type { Task } from "./TasksView";
 
 const PRIORITY_VARIANT = {
@@ -92,7 +93,7 @@ export function TaskCard({
             )}
             {task.dueDate && (
               <span className="text-[11px] text-muted-foreground">
-                due {new Date(task.dueDate).toLocaleDateString()}
+                due {formatDueDay(task.dueDate)}
               </span>
             )}
           </div>

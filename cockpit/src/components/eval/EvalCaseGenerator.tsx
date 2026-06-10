@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,27 @@ export function EvalCaseGenerator() {
   const [error, setError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState<Record<number, string>>({}); // index -> savedId
   const [accepting, setAccepting] = useState<number | null>(null);
+  // The human is the labeler: the model is TOLD to guess on boundary/ambiguous
+  // cases, so the label must be correctable before it enters the bench.
+  const [verdictOverrides, setVerdictOverrides] = useState<Record<number, "PASS" | "BLOCK">>({});
+  // Which rubric will judge the accepted goldens — surfaced up front so an
+  // accept isn't a blind write into a bench with no (or the wrong) rubric.
+  const [rubric, setRubric] = useState<{ name: string; source: string } | null | undefined>(undefined);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/rubric-designer")
+      .then((r) => r.json())
+      .then((d) => {
+        if (alive) setRubric(d.current ?? null);
+      })
+      .catch(() => {
+        if (alive) setRubric(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function generate() {
@@ -36,6 +58,9 @@ export function EvalCaseGenerator() {
     setError(null);
     setResult(null);
     setAccepted({});
+    // Overrides are keyed by case INDEX — kept across a regenerate they'd
+    // relabel whatever case lands at that index and corrupt saved goldens.
+    setVerdictOverrides({});
     setSecs(0);
     const startedAt = Date.now();
     timer.current = setInterval(() => setSecs(Math.round((Date.now() - startedAt) / 1000)), 500);
@@ -68,7 +93,7 @@ export function EvalCaseGenerator() {
             dimension: c.dimension,
             title: c.title,
             artifact: c.artifact,
-            expectedVerdict: c.expectedVerdict,
+            expectedVerdict: verdictOverrides[idx] ?? c.expectedVerdict,
             rationale: c.rationale,
           },
         }),
@@ -95,6 +120,25 @@ export function EvalCaseGenerator() {
         embeddinggemma flags near-duplicates, and each case you accept becomes a golden case for
         the eval bench. Nothing is saved without your accept.
       </p>
+
+      {rubric !== undefined && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          {rubric ? (
+            <>
+              Accepted cases will be judged by: <span className="font-medium text-foreground">{rubric.name}</span>{" "}
+              ({rubric.source})
+            </>
+          ) : (
+            <>
+              No eval rubric for this project yet —{" "}
+              <Link href="/tools/rubric-designer" className="underline hover:text-foreground">
+                design one
+              </Link>{" "}
+              or the bench can&apos;t score your goldens.
+            </>
+          )}
+        </p>
+      )}
 
       <VoiceTextarea
         className="mt-6"
@@ -161,12 +205,28 @@ export function EvalCaseGenerator() {
                     <Badge variant="secondary" className="shrink-0">
                       {c.dimension}
                     </Badge>
-                    <Badge
-                      variant={c.expectedVerdict === "PASS" ? "outline" : "destructive"}
-                      className="shrink-0"
+                    <div
+                      className="flex shrink-0 items-center gap-0.5"
+                      role="group"
+                      aria-label="Expected verdict"
                     >
-                      expect {c.expectedVerdict}
-                    </Badge>
+                      <span className="text-xs text-muted-foreground">expect</span>
+                      {(["PASS", "BLOCK"] as const).map((v) => {
+                        const current = verdictOverrides[idx] ?? c.expectedVerdict;
+                        return (
+                          <Button
+                            key={v}
+                            size="sm"
+                            variant={current === v ? "secondary" : "ghost"}
+                            className="h-6 px-1.5 text-[11px]"
+                            disabled={!!accepted[idx]}
+                            onClick={() => setVerdictOverrides((m) => ({ ...m, [idx]: v }))}
+                          >
+                            {v}
+                          </Button>
+                        );
+                      })}
+                    </div>
                     {c.duplicateOf !== null && (
                       <Badge variant="outline" className="shrink-0 text-[10px]" title="Near-duplicate by embedding similarity">
                         ≈ case {c.duplicateOf + 1}

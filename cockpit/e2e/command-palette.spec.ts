@@ -41,6 +41,31 @@ test.describe("command palette", () => {
     await expect(page.getByText(/Added task: File the POS bug/i)).toBeVisible();
   });
 
+  test("quick-added facts surface the pending-review state (mocked)", async ({ page }) => {
+    await page.route("**/api/search*", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ results: [] }) })
+    );
+    await page.route("**/api/quick-add", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          kind: "fact",
+          pending: true,
+          id: "f9",
+          title: "Staging DB resets nightly",
+          href: "/tools/memory",
+          deleteUrl: "/api/memory/f9",
+        }),
+      })
+    );
+    await page.goto("/");
+    await page.getByRole("button", { name: /search/i }).first().click();
+    const dialog = page.getByRole("dialog", { name: /command palette/i });
+    await dialog.getByPlaceholder(/search prompts/i).fill("staging DB resets nightly");
+    await dialog.getByText(/Add/).click();
+    await expect(page.getByText(/Fact queued for review: Staging DB resets nightly/i)).toBeVisible();
+  });
+
   test("searches content across entities (mocked)", async ({ page }) => {
     await page.route("**/api/search*", (route) =>
       route.fulfill({

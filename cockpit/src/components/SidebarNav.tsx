@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import { ExternalLink, Star, ArrowDownAZ, ArrowUpZA, ListFilter } from "lucide-react";
 
-import { NAV_ITEMS, type NavItem } from "@/lib/nav";
+import { NAV_GROUPS, NAV_ITEMS, type NavItem } from "@/lib/nav";
 import { usePersisted } from "@/hooks/usePersisted";
 
 const FAV_KEY = "sk:nav:favorites";
@@ -43,7 +43,14 @@ export function SidebarNav() {
   };
 
   const favItems = NAV_ITEMS.filter((i) => favorites.has(i.href));
-  const restItems = applySort(NAV_ITEMS.filter((i) => !favorites.has(i.href)));
+  const rest = NAV_ITEMS.filter((i) => !favorites.has(i.href));
+  // Grouped rendering: Dashboard stays ungrouped on top; A-Z sort applies
+  // WITHIN each group (so sorting can't shuffle Dashboard between tools).
+  const ungrouped = rest.filter((i) => !i.group);
+  const groups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: applySort(rest.filter((i) => i.group === g.id)),
+  })).filter((g) => g.items.length > 0);
   const hasFavs = favItems.length > 0;
 
   function renderItem(t: NavItem) {
@@ -76,7 +83,7 @@ export function SidebarNav() {
             "mr-1 shrink-0 rounded p-1 transition-opacity " +
             (fav
               ? "text-yellow-500"
-              : "text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100")
+              : "text-muted-foreground opacity-0 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100")
           }
         >
           <Star className={"h-3.5 w-3.5 " + (fav ? "fill-current" : "")} />
@@ -119,7 +126,15 @@ export function SidebarNav() {
         </button>
       </div>
 
-      {restItems.map(renderItem)}
+      {ungrouped.map(renderItem)}
+      {groups.map((g) => (
+        <div key={g.id} className="mt-1">
+          <div className="px-2.5 pb-0.5 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground/50">
+            {g.label}
+          </div>
+          {g.items.map(renderItem)}
+        </div>
+      ))}
 
       <a
         href="http://localhost:3001"

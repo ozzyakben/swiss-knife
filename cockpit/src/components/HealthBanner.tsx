@@ -76,7 +76,7 @@ export function HealthBanner({
       <AlertTitle>{isDown ? "Engine offline" : "Model not pulled"}</AlertTitle>
       <AlertDescription>
         {isDown
-          ? "Ollama isn't running. Start the Ollama app (open -a Ollama) — this clears automatically once it's back."
+          ? "Ollama isn't running. Start the Ollama app (macOS: open -a Ollama · Windows: Start menu) — this clears automatically once it's back."
           : `The model "${health.model}" isn't pulled yet. Run: ollama pull ${health.model} — this clears once it's ready.`}
       </AlertDescription>
     </Alert>

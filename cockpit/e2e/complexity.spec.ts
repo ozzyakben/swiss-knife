@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// Model-independent: /api/complexity (chatJson) and /api/complexity-derivation
-// (stream) are route-mocked.
+// The Big-O estimate now lives INSIDE Code Review (the standalone Complexity
+// page was folded in). Model-independent: /api/complexity (chatJson) and
+// /api/complexity-derivation (stream) are route-mocked.
 
 const RESULT = {
   verdict: {
@@ -27,23 +28,28 @@ async function mockApis(page: Page, result: unknown) {
   );
 }
 
-test.describe("complexity analyzer", () => {
-  test("page loads with input and analyze button", async ({ page }) => {
-    await page.goto("/tools/complexity");
-    await expect(page.getByRole("heading", { name: /complexity analyzer/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^analyze$/i })).toBeVisible();
+test.describe("big-O estimate (inside Code Review)", () => {
+  test("the standalone complexity page is gone; Code Review hosts the section", async ({ page }) => {
+    const res = await page.goto("/tools/complexity");
+    expect(res?.status()).toBe(404);
+    await page.goto("/tools/code-review");
+    await expect(page.getByRole("button", { name: /estimate big-o/i })).toBeVisible();
   });
 
-  test("renders verdict, scan facts, hotspots, and streams the derivation", async ({ page }) => {
+  test("renders verdict, scan facts, hotspots; derivation is opt-in and streams", async ({ page }) => {
     await mockApis(page, RESULT);
-    await page.goto("/tools/complexity");
-    await page.getByPlaceholder(/paste a function/i).fill("for (a) { for (b) { use(a, b); } }");
-    await page.getByRole("button", { name: /^analyze$/i }).click();
+    await page.goto("/tools/code-review");
+    await page.getByPlaceholder(/paste ts\/js code/i).fill("for (a) { for (b) { use(a, b); } }");
+    await page.getByRole("button", { name: /estimate big-o/i }).click();
 
     await expect(page.getByText("time O(n^2)")).toBeVisible();
     await expect(page.getByText("space O(1)")).toBeVisible();
     await expect(page.getByText("scan-consistent")).toBeVisible();
     await expect(page.getByText(/inner loop re-scans/i)).toBeVisible();
+
+    // The slow streamed derivation never auto-runs; it's a second explicit click.
+    await expect(page.getByText(/outer loop contributes a factor/i)).toHaveCount(0);
+    await page.getByRole("button", { name: /derive step-by-step/i }).click();
     await expect(page.getByText(/outer loop contributes a factor/i)).toBeVisible();
   });
 
@@ -59,9 +65,9 @@ test.describe("complexity analyzer", () => {
       ],
       ok: false,
     });
-    await page.goto("/tools/complexity");
-    await page.getByPlaceholder(/paste a function/i).fill("const x = a + b;");
-    await page.getByRole("button", { name: /^analyze$/i }).click();
+    await page.goto("/tools/code-review");
+    await page.getByPlaceholder(/paste ts\/js code/i).fill("const x = a + b;");
+    await page.getByRole("button", { name: /estimate big-o/i }).click();
 
     await expect(page.getByText("questionable claim")).toBeVisible();
     await expect(page.getByText(/no loops, no recursion/i)).toBeVisible();
@@ -78,9 +84,9 @@ test.describe("complexity analyzer", () => {
         }),
       })
     );
-    await page.goto("/tools/complexity");
-    await page.getByPlaceholder(/paste a function/i).fill("x");
-    await page.getByRole("button", { name: /^analyze$/i }).click();
+    await page.goto("/tools/code-review");
+    await page.getByPlaceholder(/paste ts\/js code/i).fill("x");
+    await page.getByRole("button", { name: /estimate big-o/i }).click();
     await expect(page.getByText(/ollama isn't running/i)).toBeVisible();
   });
 });

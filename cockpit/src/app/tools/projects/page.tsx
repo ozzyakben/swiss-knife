@@ -10,7 +10,17 @@ export default async function ProjectsPage() {
       where: { archived: false },
       orderBy: { createdAt: "asc" },
       include: {
-        _count: { select: { prompts: true, tasks: true, ideas: true, emails: true, facts: true } },
+        _count: {
+          select: {
+            prompts: true,
+            tasks: true,
+            ideas: true,
+            emails: true,
+            // Active facts only — the raw relation count included pending,
+            // dismissed, archived, and soft-deleted (Trash) rows.
+            facts: { where: { status: "active", deletedAt: null } },
+          },
+        },
       },
     })
     .catch(() => []);

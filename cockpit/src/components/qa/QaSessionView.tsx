@@ -38,13 +38,18 @@ export function QaSessionView({
   const [removing, setRemoving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [savingGolden, setSavingGolden] = useState(false);
+  const [pickingVerdict, setPickingVerdict] = useState(false);
 
   const latest = session.iterations[session.iterations.length - 1];
   const latestVerdict =
     latest?.rubric?.verdict === "PASS" || latest?.rubric?.verdict === "BLOCK" ? latest.rubric.verdict : null;
 
-  async function saveGolden() {
-    if (!latest || !latestVerdict) return;
+  // The HUMAN labels the golden. Defaulting to the rubric's verdict is fine,
+  // but forcing it meant the bench could never hold a disagreement case ("the
+  // rubric said PASS but this should BLOCK") — the most valuable golden of all.
+  async function saveGolden(expectedVerdict: "PASS" | "BLOCK") {
+    if (!latest) return;
+    setPickingVerdict(false);
     setSavingGolden(true);
     try {
       const res = await fetch("/api/qa-pipeline/golden", {
@@ -53,11 +58,14 @@ export function QaSessionView({
         body: JSON.stringify({
           story: session.story,
           draftFeature: latest.draftFeature,
-          expectedVerdict: latestVerdict,
+          expectedVerdict,
+          // Attribute the golden to THIS session's project (deep links can
+          // open sessions outside the active project).
+          sessionId: session.id,
         }),
       });
       if (!res.ok) throw new Error("Failed");
-      toast.success(`Saved to the eval bench (expected ${latestVerdict})`);
+      toast.success(`Saved to the eval bench (expected ${expectedVerdict})`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -154,9 +162,34 @@ export function QaSessionView({
             {session.title}
           </h2>
         )}
-        <Button size="sm" variant="ghost" onClick={saveGolden} disabled={!latestVerdict || savingGolden} title="Promote the latest draft + verdict to the eval bench">
-          {savingGolden ? "Saving…" : "Save as golden"}
-        </Button>
+        {pickingVerdict ? (
+          <div className="flex shrink-0 items-center gap-1" role="group" aria-label="Expected verdict">
+            <span className="text-xs text-muted-foreground">Expected:</span>
+            {(["PASS", "BLOCK"] as const).map((v) => (
+              <Button
+                key={v}
+                size="sm"
+                variant={latestVerdict === v ? "secondary" : "outline"}
+                onClick={() => saveGolden(v)}
+              >
+                {v}
+              </Button>
+            ))}
+            <Button size="sm" variant="ghost" onClick={() => setPickingVerdict(false)}>
+              ✕
+            </Button>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setPickingVerdict(true)}
+            disabled={!latest || savingGolden}
+            title="Promote the latest draft to the eval bench with YOUR expected verdict"
+          >
+            {savingGolden ? "Saving…" : "Save as golden"}
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => setConfirmOpen(true)} disabled={removing}>
           {removing ? "Deleting…" : "Delete session"}
         </Button>
@@ -172,6 +205,7 @@ export function QaSessionView({
           <QaIterationCard
             key={it.id}
             iteration={it}
+            isOnly={session.iterations.length === 1}
             onEditDraft={onEditDraft}
             onRescore={onRescore}
             onDelete={onDeleteIteration}

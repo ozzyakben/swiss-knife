@@ -13,13 +13,11 @@ export const dynamic = "force-dynamic";
  * right table: an Idea for techniques, a Prompt for prompt templates.
  */
 export async function POST(req: Request) {
-  const notReady = await assertOllamaReady();
-  if (notReady) return notReady;
-
-  const { templateId, values, save, projectId } = (await req.json().catch(() => ({}))) as {
+  const { templateId, values, persist, projectId } = (await req.json().catch(() => ({}))) as {
     templateId?: string;
     values?: Record<string, string>;
-    save?: boolean;
+    /** Save-after-run: the reviewed output — persisted verbatim, NO generation. */
+    persist?: string;
     projectId?: string;
   };
 
@@ -40,37 +38,42 @@ export async function POST(req: Request) {
     (values?.topic ?? values?.text ?? "").toString().trim() || rendered.slice(0, 60);
   const title = `${template.name}${subject ? `: ${subject.slice(0, 50)}` : ""}`;
 
+  // Save path: persist EXACTLY the output the user reviewed (the old request-
+  // time save flag re-ran the model — slow, and saved an unseen variant).
+  if (typeof persist === "string" && persist.trim()) {
+    if (template.kind === "technique") {
+      const idea = await prisma.idea.create({
+        data: {
+          title,
+          topic: subject,
+          content: persist,
+          techniqueId: template.id,
+          techniqueKind: template.category,
+          projectId: effectiveProjectId,
+        },
+      });
+      return Response.json({ ok: true, kind: "idea", id: idea.id });
+    }
+    const prompt = await prisma.prompt.create({
+      data: {
+        title,
+        original: rendered,
+        optimized: persist,
+        source: "library",
+        templateId: template.id,
+        projectId: effectiveProjectId,
+      },
+    });
+    return Response.json({ ok: true, kind: "prompt", id: prompt.id });
+  }
+
+  const notReady = await assertOllamaReady();
+  if (notReady) return notReady;
+
   return streamTextResponse({
     injectMemory: true,
     memoryProjectId: effectiveProjectId,
     memoryQuery: subject || rendered,
     messages: [{ role: "user", content: rendered }],
-    onComplete: save
-      ? async (full) => {
-          if (template.kind === "technique") {
-            await prisma.idea.create({
-              data: {
-                title,
-                topic: subject,
-                content: full,
-                techniqueId: template.id,
-                techniqueKind: template.category,
-                projectId: effectiveProjectId,
-              },
-            });
-          } else {
-            await prisma.prompt.create({
-              data: {
-                title,
-                original: rendered,
-                optimized: full,
-                source: "library",
-                templateId: template.id,
-                projectId: effectiveProjectId,
-              },
-            });
-          }
-        }
-      : undefined,
   });
 }

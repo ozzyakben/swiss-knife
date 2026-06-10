@@ -34,10 +34,17 @@ export const MODEL_PRESETS: ModelPreset[] = [
   },
   {
     tag: "gemma4:12b-mlx",
-    label: "Gemma 4 12B (MLX) — quality",
+    label: "Gemma 4 12B (MLX) — quality, Mac only",
     tier: "quality",
     ramHint: "~10–14 GB",
-    note: "Best output, Apple-Silicon native. Heavy if Docker is also up.",
+    note: "Best output. APPLE SILICON ONLY (MLX) — on Windows/Linux pick gemma4:12b. Heavy if Docker is also up.",
+  },
+  {
+    tag: "gemma4:12b",
+    label: "Gemma 4 12B (GGUF) — quality",
+    tier: "quality",
+    ramHint: "~10–14 GB",
+    note: "Best output on Windows/Linux (GGUF runs everywhere). Heavy if Docker is also up.",
   },
 ];
 

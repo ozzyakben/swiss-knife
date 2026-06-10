@@ -48,8 +48,8 @@ export function DataBackup() {
     <div className="space-y-2">
       <h2 className="text-sm font-medium">Backup &amp; restore</h2>
       <p className="text-xs text-muted-foreground">
-        Everything stays on this machine. Export a full JSON backup, or restore one on a new Mac
-        (idempotent — restoring your own export is safe).
+        Everything stays on this machine. Export a full JSON backup, or restore one on a new
+        machine (idempotent — restoring your own export is safe).
       </p>
       <div className="flex flex-wrap gap-2">
         <Button asChild variant="outline">

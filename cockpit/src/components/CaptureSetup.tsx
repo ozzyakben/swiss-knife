@@ -30,8 +30,18 @@ export function CaptureSetup() {
     toast.success("New token generated");
   }
 
+  // The test command must target THIS server — on the Docker stack that's
+  // :3000, but a local `npm run dev` port differs and a hardcoded URL fails.
+  // (The Shortcut recipes below stay on :3000: they target the long-running
+  // stack, not a dev server.) Effect-set so SSR and first paint agree.
+  const [origin, setOrigin] = useState("http://localhost:3000");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time external read (window.location)
+    setOrigin(window.location.origin);
+  }, []);
+
   const curl = token
-    ? `curl -X POST http://localhost:3000/api/capture \\\n  -H "x-capture-token: ${token}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"target":"task","text":"Buy milk"}'`
+    ? `curl -X POST ${origin}/api/capture \\\n  -H "x-capture-token: ${token}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"target":"task","text":"Buy milk"}'`
     : "Loading…";
 
   return (
@@ -43,7 +53,7 @@ export function CaptureSetup() {
         or send an <code className="rounded bg-muted px-1">image</code> (a base64{" "}
         <code className="rounded bg-muted px-1">data:image/…</code> URL, e.g. a screenshot) to
         save it as an Idea with an auto Gemma-vision description. Wire this token into a macOS
-        Shortcut, Raycast, or a hotkey.
+        Shortcut, Raycast, a Windows hotkey (recipe below), or anything that can POST.
       </p>
 
       <div className="space-y-1.5">
@@ -129,6 +139,43 @@ export function CaptureSetup() {
           <li>
             It saves as an Idea (visible in Brainstorming) with a Gemma description. Assign a
             hotkey to grab any screen region into Swiss Knife.
+          </li>
+        </ol>
+      </details>
+
+      <details className="text-sm text-muted-foreground">
+        <summary className="cursor-pointer">Windows — hotkey capture (PowerShell)</summary>
+        <ol className="ml-4 mt-2 list-decimal space-y-1">
+          <li>
+            The repo ships{" "}
+            <code className="rounded bg-muted px-1">scripts\sk-capture.ps1</code> — it captures
+            your clipboard (or an argument) as a task/fact/prompt/idea, fetching this token
+            itself, so nothing secret is stored anywhere.
+          </li>
+          <li>
+            Try it in PowerShell:{" "}
+            <code className="rounded bg-muted px-1">
+              powershell -ExecutionPolicy Bypass -File &quot;&lt;repo&gt;\scripts\sk-capture.ps1&quot;
+            </code>
+          </li>
+          <li>
+            Hotkey: create a desktop shortcut with that command as the Target, open its
+            Properties, and set a &quot;Shortcut key&quot; (e.g. Ctrl+Alt+C). AutoHotkey or
+            PowerToys work too.
+          </li>
+          <li>
+            One-off test without the script:{" "}
+            <code className="rounded bg-muted px-1">
+              curl.exe -X POST http://localhost:3000/api/capture -H &quot;x-capture-token:
+              &lt;token&gt;&quot; -H &quot;Content-Type: application/json&quot; -d
+              &quot;{`{\\"text\\":\\"hello from windows\\"}`}&quot;
+            </code>{" "}
+            (use <code className="rounded bg-muted px-1">curl.exe</code>, not{" "}
+            <code className="rounded bg-muted px-1">curl</code> — PowerShell aliases the latter).
+          </li>
+          <li>
+            Screenshots: Win+Shift+S copies a region to the clipboard — paste it into the Image
+            tool, or POST a base64 data URL as above.
           </li>
         </ol>
       </details>

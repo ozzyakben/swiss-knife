@@ -1,5 +1,7 @@
 # Swiss Knife — session handoff (written 2026-06-05)
 
+> **HISTORICAL (correction added 2026-06-10):** some instructions below are obsolete — Ollama must be the official APP (macOS cask / Windows installer), never the brew formula or a brew service, and the stack is now cross-platform (`./swiss` on macOS, `.\swiss` on Windows). Current setup lives in README.md + CLAUDE.md; treat this file as history.
+
 You are a fresh agent picking up a local-first Next.js app called **Swiss Knife**. This file is
 self-contained: read it, then `CLAUDE.md`, then verify state and continue. Prior sessions built
 the whole 5-phase roadmap; an honest audit found a handful of gaps; a plan to close them is below.

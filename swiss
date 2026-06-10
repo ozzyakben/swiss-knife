@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Swiss Knife ops CLI — one command to run, stop, inspect, and diagnose the stack.
 #
+#   ./swiss setup    one-time: install the prerequisites (Docker Desktop + Ollama app)
 #   ./swiss up       start everything: native Ollama (official app) + models + containers
 #   ./swiss down     stop the containers (native Ollama keeps running)
 #   ./swiss status   one-line state of engine / cockpit / Open WebUI / Docker
@@ -221,6 +222,12 @@ cmd_up() {
     bad "Docker daemon isn't running" "start Docker Desktop, then re-run: ./swiss up"
     exit 1
   fi
+  # The cockpit does calendar-day math (due dates, Today panel); hand it the
+  # host's IANA timezone or the container computes days in UTC.
+  if [ -z "${TZ:-}" ] && [ -L /etc/localtime ]; then
+    TZ="$(readlink /etc/localtime | sed 's|.*/zoneinfo/||')"
+    export TZ
+  fi
   echo "  building & starting containers…"
   docker compose up -d --build
 
@@ -233,6 +240,40 @@ cmd_up() {
   echo "   Cockpit:     $COCKPIT_URL"
   echo "   Open WebUI:  $OWUI_URL"
   echo "   Stop:        ./swiss down    Inspect: ./swiss status · ./swiss doctor"
+}
+
+cmd_setup() {
+  say "▶ Swiss Knife setup — install the two prerequisites (Docker Desktop + Ollama app)"
+  if ! command -v brew >/dev/null 2>&1; then
+    bad "Homebrew isn't installed (needed to install the prerequisites)" 'install it first: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"  — then re-run ./swiss setup'
+    exit 1
+  fi
+
+  if docker_installed; then
+    ok "Docker already installed"
+  else
+    echo "  installing Docker Desktop (brew cask)…"
+    brew install --cask docker
+    note "Launch Docker Desktop once from Applications to finish its setup" "open -a Docker"
+  fi
+
+  if [ -d "$OLLAMA_APP" ]; then
+    ok "Ollama app already installed"
+  else
+    echo "  installing the official Ollama app (brew cask)…"
+    brew install --cask ollama-app
+  fi
+  if command -v brew >/dev/null 2>&1 && brew list --formula 2>/dev/null | grep -qx ollama; then
+    bad "the broken Homebrew ollama FORMULA is also installed — it shadows the app's CLI" "brew uninstall ollama"
+  fi
+
+  echo
+  if [ "$FAILS" -eq 0 ]; then
+    say "Setup done. Start everything with: ./swiss up"
+  else
+    say "Fix the item(s) above, then: ./swiss up"
+    exit 1
+  fi
 }
 
 cmd_down() {
@@ -250,6 +291,7 @@ usage() {
   cat <<'EOF'
 Swiss Knife — local AI cockpit
 
+  ./swiss setup    one-time: install the prerequisites (Docker Desktop + Ollama app)
   ./swiss up       start everything: native Ollama (official app) + models + containers
   ./swiss down     stop the containers (native Ollama keeps running)
   ./swiss status   one-line state of engine / cockpit / Open WebUI / Docker
@@ -259,6 +301,7 @@ EOF
 }
 
 case "${1:-help}" in
+  setup)  cmd_setup ;;
   up)     cmd_up ;;
   down)   cmd_down ;;
   status) cmd_status ;;

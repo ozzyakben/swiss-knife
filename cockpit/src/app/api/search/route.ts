@@ -69,19 +69,48 @@ export async function GET(req: Request) {
       .catch(() => []),
   ]);
 
+  // Deep links: every href targets the ITEM (seeded search / direct open),
+  // not just the listing page — selecting a result used to drop the user on
+  // an unfiltered page to hunt for it again.
   const results: SearchResult[] = [
-    ...prompts.map((p) => ({ type: "Prompt" as const, id: p.id, title: p.title || "Untitled prompt", href: "/tools/prompt-library" })),
-    ...ideas.map((i) => ({ type: "Idea" as const, id: i.id, title: i.title || i.topic || "Idea", href: "/tools/brainstorm" })),
-    ...tasks.map((t) => ({ type: "Task" as const, id: t.id, title: t.title, subtitle: t.status, href: "/tools/tasks" })),
+    ...prompts.map((p) => ({
+      type: "Prompt" as const,
+      id: p.id,
+      title: p.title || "Untitled prompt",
+      href: `/tools/prompt-library?q=${encodeURIComponent((p.title || "").slice(0, 60))}`,
+    })),
+    ...ideas.map((i) => ({
+      type: "Idea" as const,
+      id: i.id,
+      title: i.title || i.topic || "Idea",
+      href: `/tools/brainstorm?ideaId=${i.id}`,
+    })),
+    ...tasks.map((t) => ({
+      type: "Task" as const,
+      id: t.id,
+      title: t.title,
+      subtitle: t.status,
+      href: `/tools/tasks?q=${encodeURIComponent(t.title.slice(0, 60))}`,
+    })),
     ...facts.map((f) => ({
       type: "Fact" as const,
       id: f.id,
       title: f.key || f.value.slice(0, 70),
       subtitle: f.key ? f.value.slice(0, 70) : undefined,
-      href: "/tools/memory",
+      href: `/tools/memory?q=${encodeURIComponent((f.key || f.value.slice(0, 40)).trim())}`,
     })),
-    ...emails.map((e) => ({ type: "Email" as const, id: e.id, title: e.title || e.brief?.slice(0, 70) || "Email draft", href: "/tools/email-writer" })),
-    ...sessions.map((s) => ({ type: "QA" as const, id: s.id, title: s.title, href: "/tools/qa-pipeline" })),
+    ...emails.map((e) => ({
+      type: "Email" as const,
+      id: e.id,
+      title: e.title || e.brief?.slice(0, 70) || "Email draft",
+      href: `/tools/email-writer?draftId=${e.id}`,
+    })),
+    ...sessions.map((s) => ({
+      type: "QA" as const,
+      id: s.id,
+      title: s.title,
+      href: `/tools/qa-pipeline?session=${s.id}`,
+    })),
   ];
 
   return Response.json({ results });

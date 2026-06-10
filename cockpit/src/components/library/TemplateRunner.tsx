@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Square } from "lucide-react";
 import { toast } from "sonner";
@@ -48,30 +48,55 @@ export function TemplateRunner({
   );
   const router = useRouter();
 
-  const { output, status, error, isRunning, run, stop } = useAiTool({
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  // The values that produced the current output — save persists THIS pairing.
+  const lastRunValues = useRef(values);
+
+  const { output, status, error, isRunning, elapsedMs, run, stop } = useAiTool({
     endpoint: "/api/templates/run",
-    buildBody: (_input, extra) => ({
-      templateId: template.id,
-      values,
-      save: Boolean(extra?.save),
-    }),
+    buildBody: () => ({ templateId: template.id, values }),
   });
+  const secs = Math.round(elapsedMs / 1000);
 
   function set(name: string, val: string) {
     setValues((s) => ({ ...s, [name]: val }));
   }
 
-  async function handleRun(save: boolean) {
+  async function handleRun() {
     const missing = missingRequired(vars, values);
     if (missing.length) {
       toast.error(`Fill in: ${missing.join(", ")}`);
       return;
     }
-    const ok = await run("", { save });
-    if (ok && save) {
+    setSaved(false);
+    lastRunValues.current = values;
+    await run("");
+  }
+
+  // Save-after-run: persist EXACTLY the result on screen (no regeneration),
+  // paired with the values that produced it.
+  async function saveResult() {
+    if (!output) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/templates/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ templateId: template.id, values: lastRunValues.current, persist: output }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Couldn't save the result.");
+      }
+      setSaved(true);
       toast.success(savedLabel);
       router.refresh();
       onSaved?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save the result.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -116,11 +141,8 @@ export function TemplateRunner({
       ))}
 
       <div className="flex flex-wrap gap-2">
-        <Button onClick={() => handleRun(false)} disabled={isRunning}>
-          {isRunning ? "Running…" : "Run"}
-        </Button>
-        <Button variant="outline" onClick={() => handleRun(true)} disabled={isRunning}>
-          Run &amp; save
+        <Button onClick={handleRun} disabled={isRunning}>
+          {isRunning ? `Running… ${secs}s` : "Run"}
         </Button>
         {isRunning && (
           <Button variant="ghost" onClick={stop}>
@@ -131,6 +153,13 @@ export function TemplateRunner({
 
       {error && <ErrorAlert title="Run failed" message={error} />}
       <AiOutput output={output} status={status} label="Result" />
+      {output && status === "done" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={saveResult} disabled={saving || saved}>
+            {saved ? "Saved ✓" : saving ? "Saving…" : "Save this result"}
+          </Button>
+        </div>
+      )}
       {output && status === "done" && (
         <ContextUsed query={Object.values(values).filter(Boolean).join(" ")} />
       )}

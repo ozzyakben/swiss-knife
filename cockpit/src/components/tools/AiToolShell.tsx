@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Square } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,17 +17,22 @@ export type AiToolShellProps = {
   placeholder?: string;
   runLabel?: string;
   outputLabel?: string;
-  /** Build the POST body. `save` is true when the save button was used. */
-  buildBody: (input: string, opts: { save: boolean }) => unknown;
-  enableSave?: boolean;
+  /** Build the POST body for a run. */
+  buildBody: (input: string) => unknown;
+  /**
+   * Save-AFTER-run: shown once a result exists, persists exactly what's on
+   * screen. (The old "Run & save" re-ran the model, so the saved text was
+   * never the text the user reviewed — and cost a second generation.)
+   */
+  onSaveResult?: (output: string, input: string) => Promise<void>;
   saveLabel?: string;
   savedMessage?: string;
 };
 
 /**
  * Shared shell for single-input AI tools: input, Run/Stop, streamed output with
- * copy, and an optional run-and-save button. Richer tools compose useAiTool +
- * AiOutput directly with their own inputs.
+ * copy, and an optional save-the-visible-result button. Richer tools compose
+ * useAiTool + AiOutput directly with their own inputs.
  */
 export function AiToolShell({
   title,
@@ -37,20 +42,40 @@ export function AiToolShell({
   runLabel = "Run",
   outputLabel = "Output",
   buildBody,
-  enableSave = false,
-  saveLabel = "Run & save",
+  onSaveResult,
+  saveLabel = "Save to library",
   savedMessage = "Saved to library",
 }: AiToolShellProps) {
   const [input, setInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  // The input that produced the current output — save persists THIS pairing,
+  // not whatever is in the box now (editable again after the run finishes).
+  const lastRunInput = useRef("");
   const { output, status, error, isRunning, elapsedMs, run, stop } = useAiTool({
     endpoint,
-    buildBody: (i, extra) => buildBody(i, { save: Boolean(extra?.save) }),
+    buildBody: (i) => buildBody(i),
   });
   const secs = Math.round(elapsedMs / 1000);
 
-  async function handleRun(save: boolean) {
-    const ok = await run(input, { save });
-    if (ok && save) toast.success(savedMessage);
+  async function handleRun() {
+    setSaved(false);
+    lastRunInput.current = input;
+    await run(input);
+  }
+
+  async function handleSave() {
+    if (!onSaveResult || !output) return;
+    setSaving(true);
+    try {
+      await onSaveResult(output, lastRunInput.current);
+      setSaved(true);
+      toast.success(savedMessage);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -67,25 +92,16 @@ export function AiToolShell({
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && input.trim() && !isRunning) {
             e.preventDefault();
-            handleRun(false);
+            handleRun();
           }
         }}
         disabled={isRunning}
       />
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button onClick={() => handleRun(false)} disabled={isRunning || !input.trim()}>
+        <Button onClick={handleRun} disabled={isRunning || !input.trim()}>
           {isRunning ? `Running… ${secs}s` : runLabel}
         </Button>
-        {enableSave && (
-          <Button
-            variant="outline"
-            onClick={() => handleRun(true)}
-            disabled={isRunning || !input.trim()}
-          >
-            {saveLabel}
-          </Button>
-        )}
         {isRunning && (
           <Button variant="ghost" onClick={stop}>
             <Square className="mr-1 h-4 w-4" /> Stop
@@ -96,6 +112,14 @@ export function AiToolShell({
       {error && <ErrorAlert className="mt-4" title="Run failed" message={error} />}
 
       <AiOutput output={output} status={status} label={outputLabel} />
+
+      {onSaveResult && status === "done" && output && (
+        <div className="mt-3">
+          <Button variant="outline" onClick={handleSave} disabled={saving || saved}>
+            {saved ? "Saved ✓" : saving ? "Saving…" : saveLabel}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

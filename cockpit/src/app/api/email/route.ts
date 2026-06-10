@@ -14,17 +14,21 @@ const LENGTHS = {
 } as const;
 type LengthKey = keyof typeof LENGTHS;
 
-export async function POST(req: Request) {
-  const notReady = await assertOllamaReady();
-  if (notReady) return notReady;
+/** "Subject: …" first line as the draft title (deterministic), else the brief. */
+function deriveDraftTitle(body: string, brief: string): string {
+  const m = body.match(/^Subject:\s*(.+)$/m);
+  return (m?.[1].trim() || brief.trim()).slice(0, 80);
+}
 
-  const { mode, tone, length, brief, sourceText, save } = (await req.json().catch(() => ({}))) as {
+export async function POST(req: Request) {
+  const { mode, tone, length, brief, sourceText, persist } = (await req.json().catch(() => ({}))) as {
     mode?: string;
     tone?: string;
     length?: string;
     brief?: string;
     sourceText?: string;
-    save?: boolean;
+    /** Save-after-run: the reviewed draft body — persisted verbatim, NO generation. */
+    persist?: string;
   };
 
   if (!brief || typeof brief !== "string" || !brief.trim()) {
@@ -35,6 +39,28 @@ export async function POST(req: Request) {
   const lenKey: LengthKey = length === "short" || length === "long" ? length : "medium";
   const isReply = mode === "reply";
   const projectId = await getActiveProjectId();
+
+  // Save path: persist EXACTLY the draft the user reviewed. (The old
+  // "Write & save" re-ran the model, so the saved email was never the one on
+  // screen — and cost a second generation.)
+  if (typeof persist === "string" && persist.trim()) {
+    const draft = await prisma.emailDraft.create({
+      data: {
+        title: deriveDraftTitle(persist, brief),
+        mode: isReply ? "reply" : "compose",
+        sourceText: isReply ? sourceText?.trim() || null : null,
+        brief: brief.trim(),
+        body: persist,
+        tone: t,
+        length: lenKey,
+        projectId,
+      },
+    });
+    return Response.json({ ok: true, id: draft.id });
+  }
+
+  const notReady = await assertOllamaReady();
+  if (notReady) return notReady;
 
   const system = `You write clear, effective emails. Write a ${t} email that is ${LENGTHS[lenKey]}. Return ONLY the email itself — you may start with a "Subject:" line. No preamble, no commentary, and avoid bracketed placeholders unless truly necessary.`;
 
@@ -51,21 +77,5 @@ export async function POST(req: Request) {
       { role: "system", content: system },
       { role: "user", content: parts.join("\n") },
     ],
-    onComplete: save
-      ? async (body) => {
-          await prisma.emailDraft.create({
-            data: {
-              title: brief.trim().slice(0, 60),
-              mode: isReply ? "reply" : "compose",
-              sourceText: isReply ? sourceText?.trim() || null : null,
-              brief: brief.trim(),
-              body,
-              tone: t,
-              length: lenKey,
-              projectId,
-            },
-          });
-        }
-      : undefined,
   });
 }

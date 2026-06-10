@@ -23,20 +23,25 @@ export async function POST(req: Request) {
   // benign race doesn't roll back the whole drag; the remaining real moves still
   // persist atomically.
   const allIds = STATUSES.flatMap((s) => (Array.isArray(columns[s]) ? columns[s] : []));
-  const known = new Set(
-    (await prisma.task.findMany({ where: { id: { in: allIds } }, select: { id: true } })).map((t) => t.id)
+  const known = new Map(
+    (await prisma.task.findMany({ where: { id: { in: allIds } }, select: { id: true, status: true } })).map(
+      (t) => [t.id, t.status]
+    )
   );
 
   const updates: Prisma.PrismaPromise<unknown>[] = [];
   for (const status of STATUSES) {
     const ids = (Array.isArray(columns[status]) ? columns[status] : []).filter((id) => known.has(id));
     ids.forEach((id, index) => {
-      updates.push(
-        prisma.task.update({
-          where: { id },
-          data: { status, order: index, completedAt: status === "done" ? new Date() : null },
-        })
-      );
+      // completedAt only changes on a real status TRANSITION. A drag persists
+      // the whole board, so stamping every done-column task rewrote completion
+      // history on every reorder (and broke the wrapup routine's
+      // completedAt >= today query).
+      const data: { status: string; order: number; completedAt?: Date | null } = { status, order: index };
+      const prev = known.get(id);
+      if (status === "done" && prev !== "done") data.completedAt = new Date();
+      else if (status !== "done" && prev === "done") data.completedAt = null;
+      updates.push(prisma.task.update({ where: { id }, data }));
     });
   }
 

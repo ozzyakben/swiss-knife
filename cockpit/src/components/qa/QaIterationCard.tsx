@@ -6,21 +6,25 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { analyzeCoverage } from "@/lib/gherkinLint";
 import { downloadText } from "@/lib/download";
 import type { Iteration } from "@/components/qa/types";
 
 type Props = {
   iteration: Iteration;
+  /** True when this is the session's only iteration — deleting it deletes the session. */
+  isOnly?: boolean;
   onEditDraft: (id: string, draftFeature: string) => Promise<void>;
   onRescore: (id: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 };
 
-export function QaIterationCard({ iteration: it, onEditDraft, onRescore, onDelete }: Props) {
+export function QaIterationCard({ iteration: it, isOnly = false, onEditDraft, onRescore, onDelete }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(it.draftFeature);
   const [busy, setBusy] = useState<"save" | "rescore" | "delete" | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function save() {
     if (!draft.trim() || draft === it.draftFeature) {
@@ -225,10 +229,25 @@ export function QaIterationCard({ iteration: it, onEditDraft, onRescore, onDelet
         </section>
 
         <div className="flex justify-end border-t border-border pt-3">
-          <Button size="sm" variant="ghost" onClick={remove} disabled={busy === "delete"}>
+          <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(true)} disabled={busy === "delete"}>
             {busy === "delete" ? "Deleting…" : "Delete iteration"}
           </Button>
         </div>
+
+        {/* Deleting the ONLY iteration cascades into deleting the whole session —
+            the dialog says so instead of letting that surprise the user. */}
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title={isOnly ? "Delete the whole session?" : `Delete iteration ${it.order}?`}
+          description={
+            isOnly
+              ? "This is the only iteration — deleting it deletes the session and its story too."
+              : "The draft, lint result, and score of this iteration are removed."
+          }
+          confirmLabel={isOnly ? "Delete session" : "Delete iteration"}
+          onConfirm={remove}
+        />
       </CardContent>
     </Card>
   );

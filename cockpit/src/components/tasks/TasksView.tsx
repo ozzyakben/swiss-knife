@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { formatDueDay } from "@/lib/dates";
 import {
   Select,
   SelectContent,
@@ -46,6 +47,7 @@ export type Task = {
   dueDate: string | null;
   order: number;
   module: string | null;
+  projectId?: string | null;
   projectName?: string | null;
 };
 
@@ -64,7 +66,17 @@ function group(tasks: Task[]): Board {
   return b;
 }
 
-export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
+export function TasksView({
+  initialTasks,
+  activeProject,
+  initialQuery = "",
+}: {
+  initialTasks: Task[];
+  /** The active project (from the sidebar switcher); enables project scoping. */
+  activeProject?: { id: string; name: string } | null;
+  /** Seed for the search box (the ⌘K search deep link: /tools/tasks?q=…). */
+  initialQuery?: string;
+}) {
   const [board, setBoard] = useState<Board>(() => group(initialTasks));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
@@ -76,10 +88,29 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   // ---- search + filter (client-side, instant — like the Memory page) ----
   // Priority/module filters and the board/list tab survive reloads
   // (localStorage); the search box stays ephemeral by design.
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [priorityRaw, setPriorityFilter] = usePersisted("sk:tasks:priority", "all");
   const [moduleRaw, setModuleFilter] = usePersisted("sk:tasks:module", "all");
   const [view, setView] = usePersisted("sk:tasks:view", "board");
+  // Scope to the active project by default — the page used to show every
+  // project's tasks while DailyBrief/creates scoped, so switching projects
+  // changed nothing here. "All projects" is one click and persisted.
+  const [scopeRaw, setScope] = usePersisted("sk:tasks:scope", "project");
+  const scope: "project" | "all" = scopeRaw === "all" ? "all" : "project";
+
+  // A ⌘K deep link must actually reveal its target: useState ignores a new
+  // initialQuery once mounted, and /api/search matches across ALL projects, so
+  // lift the persisted filters/scope that could mask the result.
+  useEffect(() => {
+    if (!initialQuery) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- prop-driven deep-link consume
+    setQuery(initialQuery);
+    setPriorityFilter("all");
+    setModuleFilter("all");
+    setScope("all");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- usePersisted setters are not memoized
+  }, [initialQuery]);
+
   const clearFilters = () => {
     setQuery("");
     setPriorityFilter("all");
@@ -109,6 +140,8 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
   const q = query.trim().toLowerCase();
   const isFiltering = q !== "" || priorityFilter !== "all" || moduleFilter !== "all";
   const matches = (t: Task): boolean => {
+    // Project scope mirrors DailyBrief: the active project's tasks + global ones.
+    if (activeProject && scope === "project" && t.projectId && t.projectId !== activeProject.id) return false;
     if (priorityFilter !== "all" && t.priority !== priorityFilter) return false;
     if (moduleFilter === "none" && t.module) return false;
     if (moduleFilter !== "all" && moduleFilter !== "none" && t.module !== moduleFilter) return false;
@@ -123,7 +156,9 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
     doing: board.doing.filter(matches),
     done: board.done.filter(matches),
   };
-  const totalCount = allTasks.length;
+  const inScope = (t: Task) =>
+    !activeProject || scope === "all" || !t.projectId || t.projectId === activeProject.id;
+  const totalCount = allTasks.filter(inScope).length;
   const filteredCount = filtered.todo.length + filtered.doing.length + filtered.done.length;
 
   // Bulk ops act ONLY on selected tasks that are currently visible — a
@@ -175,7 +210,14 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
       doing: prev.doing.filter((t) => t.id !== id),
       done: prev.done.filter((t) => t.id !== id),
     }));
-    await fetch(`/api/tasks/${id}`, { method: "DELETE" }).catch(() => {});
+    // Optimistic, but a failure must not be silent — the row would reappear on
+    // reload with no explanation (bulkDelete and setStatus already surface this).
+    try {
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error("Couldn't delete the task — reload to resync.");
+    }
   }
 
   async function setStatus(id: string, status: Status) {
@@ -441,6 +483,17 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
             </SelectContent>
           </Select>
         )}
+        {activeProject && (
+          <Select value={scope} onValueChange={setScope}>
+            <SelectTrigger className="w-44" aria-label="Project scope">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="project">{activeProject.name} + global</SelectItem>
+              <SelectItem value="all">All projects</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         {isFiltering && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8">
             <X className="mr-1 h-3.5 w-3.5" /> Clear
@@ -569,7 +622,7 @@ export function TasksView({ initialTasks }: { initialTasks: Task[] }) {
                   </button>
                   {t.dueDate && (
                     <span className="shrink-0 text-[11px] text-muted-foreground">
-                      due {new Date(t.dueDate).toLocaleDateString()}
+                      due {formatDueDay(t.dueDate)}
                     </span>
                   )}
                   <Button

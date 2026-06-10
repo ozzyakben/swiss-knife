@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Square } from "lucide-react";
 import { toast } from "sonner";
@@ -30,27 +30,50 @@ export function EmailWriter() {
   const [brief, setBrief] = useState("");
   const [sourceText, setSourceText] = useState("");
 
-  const { output, status, error, isRunning, run, stop } = useAiTool({
-    endpoint: "/api/email",
-    buildBody: (_i, extra) => ({
-      mode,
-      tone,
-      length,
-      brief,
-      sourceText,
-      save: Boolean(extra?.save),
-    }),
-  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  // The settings that produced the current draft — save persists THIS pairing,
+  // not whatever the form says now (editable again after the run finishes).
+  const lastRun = useRef({ mode, tone, length, brief, sourceText });
 
-  async function handleRun(save: boolean) {
+  const { output, status, error, isRunning, elapsedMs, run, stop } = useAiTool({
+    endpoint: "/api/email",
+    buildBody: () => ({ mode, tone, length, brief, sourceText }),
+  });
+  const secs = Math.round(elapsedMs / 1000);
+
+  async function handleRun() {
     if (!brief.trim()) {
       toast.error("Add a brief — what should the email say?");
       return;
     }
-    const ok = await run("", { save });
-    if (ok && save) {
+    setSaved(false);
+    lastRun.current = { mode, tone, length, brief, sourceText };
+    await run("");
+  }
+
+  // Save-after-run: persist EXACTLY the draft on screen (no regeneration),
+  // paired with the inputs that produced it.
+  async function saveDraft() {
+    if (!output) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...lastRun.current, persist: output }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Couldn't save the draft.");
+      }
+      setSaved(true);
       toast.success("Draft saved");
       router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save the draft.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -120,17 +143,20 @@ export function EmailWriter() {
           rows={4}
           value={brief}
           onValueChange={setBrief}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && brief.trim() && !isRunning) {
+              e.preventDefault();
+              handleRun();
+            }
+          }}
           placeholder="e.g. Ask for a 2-day extension on the report, apologize for the delay, propose Thursday."
           disabled={isRunning}
         />
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button onClick={() => handleRun(false)} disabled={isRunning || !brief.trim()}>
-          {isRunning ? "Writing…" : "Write"}
-        </Button>
-        <Button variant="outline" onClick={() => handleRun(true)} disabled={isRunning || !brief.trim()}>
-          Write &amp; save
+        <Button onClick={handleRun} disabled={isRunning || !brief.trim()}>
+          {isRunning ? `Writing… ${secs}s` : "Write"}
         </Button>
         {isRunning && (
           <Button variant="ghost" onClick={stop}>
@@ -141,6 +167,13 @@ export function EmailWriter() {
 
       {error && <ErrorAlert className="mt-4" title="Draft failed" message={error} />}
       <AiOutput output={output} status={status} label="Draft" />
+      {output && status === "done" && (
+        <div className="mt-3">
+          <Button variant="outline" onClick={saveDraft} disabled={saving || saved}>
+            {saved ? "Saved ✓" : saving ? "Saving…" : "Save draft"}
+          </Button>
+        </div>
+      )}
       {output && status === "done" && <ContextUsed query={brief} />}
     </div>
   );

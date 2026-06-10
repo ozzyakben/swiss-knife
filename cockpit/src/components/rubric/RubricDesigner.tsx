@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -165,6 +166,16 @@ export function RubricDesigner() {
               {savedSlug ? "Saved" : saving ? "Saving…" : "Save as project rubric"}
             </Button>
           </div>
+
+          {savedSlug && (
+            <p className="text-xs text-muted-foreground">
+              This rubric now scores the QA pipeline and the eval bench —{" "}
+              <Link href="/tools/qa-pipeline" className="underline hover:text-foreground">
+                run the eval bench
+              </Link>{" "}
+              to check agreement against your goldens.
+            </p>
+          )}
 
           <Card>
             <CardContent className="py-4">

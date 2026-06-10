@@ -166,13 +166,18 @@ test.describe("qa pipeline", () => {
     await expect(page.getByText("edited")).toBeVisible();
   });
 
-  test("delete removes a session from the history list", async ({ page }) => {
+  test("delete confirms, then removes a session from the history list", async ({ page }) => {
     await mockBase(page, { list: [summary(true)] });
     await page.route("**/api/qa-pipeline/sess_1", (route) => route.fulfill(fulfill({ ok: true })));
     await page.goto("/tools/qa-pipeline");
     const row = page.getByText("As a cashier I want a tax-exempt cash sale");
     await expect(row).toBeVisible();
+    // List-row delete is the same cascade as the in-session delete — it must go
+    // through the ConfirmDialog, not fire on one stray click.
     await page.getByRole("button", { name: /^delete$/i }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText(/every iteration in this session/i)).toBeVisible();
+    await dialog.getByRole("button", { name: /^delete$/i }).click();
     await expect(row).toHaveCount(0);
   });
 

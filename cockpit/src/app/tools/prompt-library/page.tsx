@@ -4,7 +4,12 @@ import { PromptLibrary } from "@/components/library/PromptLibrary";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default async function PromptLibraryPage() {
+export default async function PromptLibraryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
   const [promptRows, templateRows] = await Promise.all([
     prisma.prompt
       .findMany({
@@ -38,5 +43,5 @@ export default async function PromptLibraryPage() {
     builtin: t.builtin,
   }));
 
-  return <PromptLibrary prompts={prompts} templates={templates} />;
+  return <PromptLibrary prompts={prompts} templates={templates} initialQuery={q ?? ""} />;
 }

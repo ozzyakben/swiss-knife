@@ -2,9 +2,11 @@
 
 import { Search } from "lucide-react";
 
+import { useIsMac } from "@/hooks/useIsMac";
+
 /** Sidebar affordance that opens the global command palette (also bound to ⌘K). */
 export function CommandHint() {
-  const isMac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
+  const isMac = useIsMac();
   return (
     <button
       onClick={() => window.dispatchEvent(new Event("swissknife:command"))}

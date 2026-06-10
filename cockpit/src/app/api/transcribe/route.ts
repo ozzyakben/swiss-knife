@@ -48,8 +48,23 @@ function run(cmd: string, args: string[]): Promise<RunResult> {
 }
 
 function isMissing(e: unknown): boolean {
-  return (e as NodeJS.ErrnoException)?.code === "ENOENT";
+  // ENOENT = binary not on PATH. EINVAL = Windows Node >=20.12 refusing to
+  // spawn a .cmd/.bat shim without shell:true — same remedy for the user
+  // (point WHISPER_BIN/FFMPEG_BIN at the real .exe), so same 503.
+  const code = (e as NodeJS.ErrnoException)?.code;
+  return code === "ENOENT" || code === "EINVAL";
 }
+
+// Voice runs in LOCAL DEV (the Docker image doesn't bundle ffmpeg/whisper), so
+// process.platform here is the USER's real OS — platform-specific install
+// hints are correct in this route (unlike the containerized health copy).
+const IS_WIN = process.platform === "win32";
+const FFMPEG_HINT = IS_WIN
+  ? "Install ffmpeg: winget install Gyan.FFmpeg — then restart the dev server."
+  : "Run: brew install ffmpeg";
+const WHISPER_HINT = IS_WIN
+  ? "Download a whisper.cpp Windows release (github.com/ggml-org/whisper.cpp/releases), unzip, add it to PATH or set WHISPER_BIN to the .exe."
+  : "Run: brew install whisper-cpp";
 
 function isTimeout(e: unknown): boolean {
   return (e as { timedOut?: boolean })?.timedOut === true;
@@ -93,7 +108,7 @@ export async function POST(req: Request) {
     } catch (e) {
       if (isMissing(e)) {
         return Response.json(
-          { error: "ffmpeg isn't installed. Run: brew install ffmpeg", reason: "no-ffmpeg" },
+          { error: `ffmpeg isn't installed. ${FFMPEG_HINT}`, reason: "no-ffmpeg" },
           { status: 503 }
         );
       }
@@ -107,7 +122,7 @@ export async function POST(req: Request) {
     if (!existsSync(WHISPER_MODEL)) {
       return Response.json(
         {
-          error: `No whisper model at ${WHISPER_MODEL}. Download one: curl -L -o "${WHISPER_MODEL}" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin`,
+          error: `No whisper model at ${WHISPER_MODEL}. Download one: curl -L --create-dirs -o "${WHISPER_MODEL}" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin${IS_WIN ? "  (use curl.exe in PowerShell)" : ""}`,
           reason: "no-model",
         },
         { status: 503 }
@@ -119,7 +134,7 @@ export async function POST(req: Request) {
     } catch (e) {
       if (isMissing(e)) {
         return Response.json(
-          { error: "whisper.cpp isn't installed. Run: brew install whisper-cpp", reason: "no-whisper" },
+          { error: `whisper.cpp isn't installed. ${WHISPER_HINT}`, reason: "no-whisper" },
           { status: 503 }
         );
       }

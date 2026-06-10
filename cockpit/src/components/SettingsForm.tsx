@@ -32,6 +32,7 @@ type InstalledModel = {
 };
 
 const CUSTOM = "__custom__";
+const SAME_AS_CHAT = "__same__";
 
 export function SettingsForm({
   initialConfig,
@@ -51,6 +52,7 @@ export function SettingsForm({
 
   const [installed, setInstalled] = useState<InstalledModel[]>([]);
   const [customMode, setCustomMode] = useState(false);
+  const [qaCustomMode, setQaCustomMode] = useState(false);
 
   // What's actually pulled in the local Ollama (sizes, params). Best-effort.
   // If the saved model isn't a known option, drop into custom mode so the user
@@ -68,12 +70,14 @@ export function SettingsForm({
           models.some((m) => !m.embedding && m.name === initialConfig.model) ||
           !!PRESET_BY_TAG[initialConfig.model];
         if (!known && initialConfig.model) setCustomMode(true);
+        const qa = initialConfig.qaModel ?? "";
+        if (qa && !models.some((m) => !m.embedding && m.name === qa)) setQaCustomMode(true);
       })
       .catch(() => {});
     return () => {
       active = false;
     };
-  }, [initialConfig.model]);
+  }, [initialConfig.model, initialConfig.qaModel]);
 
   const installedChat = useMemo(() => installed.filter((m) => !m.embedding), [installed]);
   const installedNames = useMemo(() => new Set(installed.map((m) => m.name)), [installed]);
@@ -111,7 +115,15 @@ export function SettingsForm({
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model, qaModel, baseUrl, temperature: Number(temperature), userName }),
+        body: JSON.stringify({
+          model,
+          qaModel,
+          baseUrl,
+          // A cleared field means "reset to default" (the API's ''→null path),
+          // not 0 — Number('') is 0, which silently saved a frozen temperature.
+          temperature: temperature.trim() === "" ? "" : Number(temperature),
+          userName,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
@@ -193,15 +205,49 @@ export function SettingsForm({
 
       <div className="space-y-1.5">
         <Label htmlFor="qaModel">QA pipeline model</Label>
-        <Input
-          id="qaModel"
-          value={qaModel}
-          onChange={(e) => setQaModel(e.target.value)}
-          placeholder="(uses the chat model above)"
-        />
+        <Select
+          value={qaCustomMode ? CUSTOM : qaModel === "" ? SAME_AS_CHAT : qaModel}
+          onValueChange={(v) => {
+            if (v === CUSTOM) {
+              setQaCustomMode(true);
+              return;
+            }
+            setQaCustomMode(false);
+            setQaModel(v === SAME_AS_CHAT ? "" : v);
+          }}
+        >
+          <SelectTrigger id="qaModel">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={SAME_AS_CHAT}>Same as chat model</SelectItem>
+            {installedChat.length > 0 && (
+              <SelectGroup>
+                <SelectLabel>Installed</SelectLabel>
+                {installedChat.map((m) => (
+                  <SelectItem key={m.name} value={m.name}>
+                    {m.name}
+                    {m.sizeBytes ? ` — ${formatBytes(m.sizeBytes)}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )}
+            <SelectItem value={CUSTOM}>Custom tag…</SelectItem>
+          </SelectContent>
+        </Select>
+        {qaCustomMode && (
+          <Input
+            aria-label="Custom QA model tag"
+            className="mt-2"
+            value={qaModel}
+            onChange={(e) => setQaModel(e.target.value)}
+            placeholder="e.g. gemma4:12b (or gemma4:12b-mlx on Apple Silicon)"
+          />
+        )}
         <p className="text-xs text-muted-foreground">
-          Optional. Run the QA pipeline on a different model — e.g. <code>gemma4:12b-mlx</code> for
-          rigor — while everything else stays fast. Leave blank to use the chat model above.
+          Optional. Run the QA pipeline on a different model for rigor — e.g.{" "}
+          <code>gemma4:12b</code> (GGUF, all platforms) or <code>gemma4:12b-mlx</code> (Apple
+          Silicon only) — while everything else stays fast.
         </p>
       </div>
 

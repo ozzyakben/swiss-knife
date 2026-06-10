@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { GHERKIN_PREFILL_KEY } from "@/lib/gherkinPrefill";
 
 type Issue = { severity: "ERROR" | "WARN"; line: number; message: string };
 type Result = {
@@ -30,6 +31,18 @@ export function GherkinLinter() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Result | null>(null);
+
+  // Consume the Smart Inbox handoff (one-time, then cleared). Reading it in the
+  // state initializer would SSR-mismatch the textarea; this is the legitimate
+  // consume-an-external-store-once pattern.
+  useEffect(() => {
+    const prefill = sessionStorage.getItem(GHERKIN_PREFILL_KEY);
+    if (prefill) {
+      sessionStorage.removeItem(GHERKIN_PREFILL_KEY);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time external handoff consume
+      setText(prefill);
+    }
+  }, []);
 
   async function lint() {
     if (!text.trim()) return;

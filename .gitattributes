@@ -1,0 +1,8 @@
+# Line endings: LF in the repo and on checkout for anything a Linux container
+# or bash runs (a CRLF docker-entrypoint.sh fails as "/bin/sh^M: bad
+# interpreter" inside the container); CRLF only for cmd.exe scripts.
+* text=auto
+*.sh text eol=lf
+swiss text eol=lf
+*.ps1 text
+*.cmd text eol=crlf

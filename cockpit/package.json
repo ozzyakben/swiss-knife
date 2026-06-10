@@ -2,6 +2,9 @@
   "name": "swiss-knife-cockpit",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
@@ -10,6 +13,7 @@
     "lint": "eslint .",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
+    "clean": "node -e \"fs.rmSync('.next',{recursive:true,force:true})\"",
     "db:seed": "node --env-file=.env prisma/seed.mjs",
     "seed:lbmh": "node --env-file=.env prisma/seed-lbmh.mjs"
   },

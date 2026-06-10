@@ -32,15 +32,29 @@ function Section({ title, items }: { title: string; items: string[] }) {
 
 export default async function ProjectHubPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // Previews are take:8 (what Section renders); headers show TRUE totals from
+  // _count — the old code rendered a capped array length as the total and
+  // loaded every row (all 222 pack tasks) to display eight.
   const project = await prisma.project
     .findUnique({
       where: { id },
       include: {
-        prompts: { orderBy: { createdAt: "desc" }, take: 20 },
-        tasks: { orderBy: { order: "asc" } },
-        ideas: { orderBy: { createdAt: "desc" }, take: 20 },
-        emails: { orderBy: { createdAt: "desc" }, take: 20 },
-        facts: { where: { status: { not: "dismissed" } }, orderBy: { createdAt: "desc" } },
+        prompts: { orderBy: { createdAt: "desc" }, take: 8 },
+        tasks: { orderBy: { order: "asc" }, take: 8 },
+        ideas: { orderBy: { createdAt: "desc" }, take: 8 },
+        emails: { orderBy: { createdAt: "desc" }, take: 8 },
+        // Active facts only — pending/archived/dismissed and soft-deleted
+        // (Trash) rows must not resurface here (the 12-site deletedAt contract).
+        facts: { where: { status: "active", deletedAt: null }, orderBy: { createdAt: "desc" }, take: 8 },
+        _count: {
+          select: {
+            prompts: true,
+            tasks: true,
+            ideas: true,
+            emails: true,
+            facts: { where: { status: "active", deletedAt: null } },
+          },
+        },
       },
     })
     .catch(() => null);
@@ -59,17 +73,17 @@ export default async function ProjectHubPage({ params }: { params: Promise<{ id:
       />
 
       <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Section title={`Prompts (${project.prompts.length})`} items={project.prompts.map((p) => p.title)} />
+        <Section title={`Prompts (${project._count.prompts})`} items={project.prompts.map((p) => p.title)} />
         <Section
-          title={`Tasks (${project.tasks.length})`}
+          title={`Tasks (${project._count.tasks})`}
           items={project.tasks.map((t) => `${t.title} · ${t.status}`)}
         />
-        <Section title={`Ideas (${project.ideas.length})`} items={project.ideas.map((i) => i.title || i.topic)} />
+        <Section title={`Ideas (${project._count.ideas})`} items={project.ideas.map((i) => i.title || i.topic)} />
         <Section
-          title={`Drafts (${project.emails.length})`}
+          title={`Drafts (${project._count.emails})`}
           items={project.emails.map((e) => e.title || "Untitled draft")}
         />
-        <Section title={`Memory (${project.facts.length})`} items={project.facts.map((f) => f.value)} />
+        <Section title={`Memory (${project._count.facts})`} items={project.facts.map((f) => f.value)} />
       </div>
     </div>
   );

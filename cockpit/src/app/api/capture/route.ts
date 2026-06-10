@@ -1,10 +1,9 @@
-import { mkdir, writeFile } from "fs/promises";
-import { join } from "path";
-import { randomUUID } from "crypto";
-
 import { prisma } from "@/lib/db";
 import { describeImage } from "@/lib/vision";
 import { readCaptureToken, tokenMatches } from "@/lib/captureAuth";
+import { embedDocuments, serializeVector } from "@/lib/embeddings";
+import { logActivity } from "@/lib/activity";
+import { saveDataUrlImage } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,19 +15,6 @@ const MAX_IMAGE_CHARS = 20 * 1024 * 1024;
 async function getToken(): Promise<string | null> {
   const s = await prisma.settings.findUnique({ where: { id: "singleton" } }).catch(() => null);
   return s?.captureToken || null;
-}
-
-/** Persist a data:image/* URL under cockpit/uploads/, returning its relative path. */
-async function saveCaptureImage(dataUrl: string): Promise<string | null> {
-  const m = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/s);
-  if (!m) return null;
-  const ext = m[1].toLowerCase() === "jpeg" ? "jpg" : m[1].toLowerCase();
-  const buf = Buffer.from(m[2], "base64");
-  const dir = join(process.cwd(), "uploads");
-  await mkdir(dir, { recursive: true });
-  const file = `${randomUUID()}.${ext}`;
-  await writeFile(join(dir, file), buf);
-  return `uploads/${file}`;
 }
 
 /**
@@ -66,11 +52,19 @@ export async function POST(req: Request) {
     return Response.json({ error: "Image too large (max ~15 MB)." }, { status: 413 });
   }
 
-  const pid = typeof projectId === "string" && projectId ? projectId : null;
+  // Validate the project — a stale Shortcut id would FK-fail the create with a
+  // raw 500; an unknown project degrades to a global capture instead.
+  let pid: string | null = null;
+  if (typeof projectId === "string" && projectId) {
+    const exists = await prisma.project
+      .findUnique({ where: { id: projectId }, select: { id: true } })
+      .catch(() => null);
+    pid = exists ? projectId : null;
+  }
 
   // Image capture → Idea with a vision description + the saved file path.
   if (hasImage) {
-    const imagePath = await saveCaptureImage(image as string);
+    const imagePath = await saveDataUrlImage(image as string);
     if (!imagePath) {
       return Response.json({ error: "Unsupported image format." }, { status: 400 });
     }
@@ -90,6 +84,9 @@ export async function POST(req: Request) {
         projectId: pid,
       },
     });
+    // The Activity page advertises captures and the wrapup routine reads them —
+    // a headless capture that leaves no activity row is invisible to both.
+    await logActivity({ entity: "idea", action: "captured", summary: idea.title ?? idea.topic, projectId: pid });
     return Response.json({ ok: true, target: "idea", id: idea.id, imagePath, described: !!description });
   }
 
@@ -98,8 +95,17 @@ export async function POST(req: Request) {
 
   let id: string;
   if (tgt === "fact") {
+    // Verbatim human text with an explicit target=fact → active is right; but
+    // embed at create (best-effort) so it ranks without a manual reindex.
+    let embedding: string | null = null;
+    try {
+      const [v] = await embedDocuments([t.slice(0, 300)]);
+      embedding = serializeVector(v);
+    } catch {
+      embedding = null;
+    }
     const f = await prisma.memoryFact.create({
-      data: { value: t.slice(0, 300), source: "manual", status: "active", projectId: pid },
+      data: { value: t.slice(0, 300), source: "manual", status: "active", projectId: pid, embedding },
     });
     id = f.id;
   } else if (tgt === "prompt") {
@@ -120,5 +126,6 @@ export async function POST(req: Request) {
     id = task.id;
   }
 
+  await logActivity({ entity: tgt as string, action: "captured", summary: t.slice(0, 120), projectId: pid });
   return Response.json({ ok: true, target: tgt, id });
 }

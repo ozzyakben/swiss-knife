@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { assertOllamaReady } from "@/lib/health";
+import { getEffectiveConfig } from "@/lib/config";
 import {
   loadProjectQaContext,
   runFollowUpIteration,
@@ -66,7 +67,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
   const ctx = await loadProjectQaContext(session.projectId);
   if (!ctx.hasPack) return Response.json({ projectId: session.projectId, needsPack: true });
 
-  const notReady = await assertOllamaReady();
+  const cfg = await getEffectiveConfig();
+  const notReady = await assertOllamaReady(cfg.qaModel ?? undefined);
   if (notReady) return notReady;
 
   const previous = session.iterations[0];
@@ -90,7 +92,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ session
       lintOk: lint.ok,
       errors: lint.summary.errors,
       warnings: lint.summary.warnings,
-      score: rubric,
+      // null = scoring failed but the revision survived; renders as STALE.
+      score: rubric ?? Prisma.DbNull,
     },
     select: ITERATION_SELECT,
   });

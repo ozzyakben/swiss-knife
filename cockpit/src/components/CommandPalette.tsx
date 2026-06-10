@@ -7,33 +7,18 @@ import { Search, CornerDownLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VoiceButton } from "@/components/tools/VoiceButton";
+import { NAV_ITEMS } from "@/lib/nav";
+import { useIsMac } from "@/hooks/useIsMac";
 import type { SearchResult } from "@/app/api/search/route";
 
-// Static "jump to" destinations. The palette filters these by the query and
-// shows them above live content matches.
-const NAV: { label: string; href: string; keywords?: string }[] = [
-  { label: "Dashboard", href: "/", keywords: "home brief today" },
-  { label: "Prompt Optimizer", href: "/tools/prompt-optimizer", keywords: "sharpen" },
-  { label: "Prompt Library", href: "/tools/prompt-library", keywords: "templates" },
-  { label: "Email Writer", href: "/tools/email-writer", keywords: "compose reply" },
-  { label: "Brainstorming", href: "/tools/brainstorm", keywords: "ideas techniques" },
-  { label: "Image", href: "/tools/image", keywords: "vision photo" },
-  { label: "Smart Inbox", href: "/tools/inbox", keywords: "drop paste sort" },
-  { label: "Tasks", href: "/tools/tasks", keywords: "todo kanban board" },
-  { label: "Gherkin Lint", href: "/tools/gherkin-lint", keywords: "bdd feature" },
-  { label: "ADR Writer", href: "/tools/adr", keywords: "decision record madr architecture" },
-  { label: "Code Review", href: "/tools/code-review", keywords: "smells complexity diff lint" },
-  { label: "Rubric Designer", href: "/tools/rubric-designer", keywords: "eval rubric weights bands score" },
-  { label: "Eval Cases", href: "/tools/eval-cases", keywords: "golden test cases coverage adversarial boundary" },
-  { label: "API Contract", href: "/tools/api-contract", keywords: "openapi swagger rest endpoint yaml" },
-  { label: "Complexity", href: "/tools/complexity", keywords: "big-o performance algorithm hotspots" },
-  { label: "QA Pipeline", href: "/tools/qa-pipeline", keywords: "story rubric test" },
-  { label: "Bug Report", href: "/tools/bug-report", keywords: "defect repro severity" },
-  { label: "Memory", href: "/tools/memory", keywords: "facts glossary" },
-  { label: "Activity", href: "/tools/activity", keywords: "timeline log history" },
-  { label: "Projects", href: "/tools/projects", keywords: "hub" },
-  { label: "Settings", href: "/settings", keywords: "model theme health" },
-];
+// "Jump to" destinations DERIVED from the nav registry (lib/nav.tsx) — the
+// palette used to hand-copy this list and drifted from the sidebar twice.
+// Labels, order, and keywords now have exactly one home.
+const NAV: { label: string; href: string; keywords?: string }[] = NAV_ITEMS.map((i) => ({
+  label: i.label,
+  href: i.href,
+  keywords: i.keywords,
+}));
 
 // One-keystroke actions (badge "Run"), filtered like NAV entries.
 type ActionId = "theme" | "reindex" | "new-qa" | "standup" | "wrapup" | "switch-project";
@@ -46,11 +31,10 @@ const ACTIONS: { id: ActionId; label: string; keywords: string }[] = [
   { id: "wrapup", label: "Run wrap-up routine", keywords: "daily routine evening summary" },
 ];
 
-const IS_MAC = typeof navigator !== "undefined" && /Mac/.test(navigator.platform);
-
 type ProjectLite = { id: string; name: string };
 
 export function CommandPalette() {
+  const IS_MAC = useIsMac();
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
@@ -218,6 +202,9 @@ export function CommandPalette() {
   const quickAdd = useCallback(
     async (text: string) => {
       close();
+      // Immediate feedback: the classify call runs on the local model and can
+      // take seconds on a cold load — never leave the user wondering.
+      const toastId = toast.loading("Adding…");
       try {
         const res = await fetch("/api/quick-add", {
           method: "POST",
@@ -226,7 +213,11 @@ export function CommandPalette() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Failed");
-        toast.success(`Added ${data.kind}: ${data.title}`, {
+        const label = data.pending
+          ? `Fact queued for review: ${data.title}`
+          : `Added ${data.kind}: ${data.title}`;
+        toast.success(label, {
+          id: toastId,
           action: {
             label: "Undo",
             onClick: () => void fetch(data.deleteUrl, { method: "DELETE" }).then(() => router.refresh()),
@@ -234,7 +225,7 @@ export function CommandPalette() {
         });
         router.refresh();
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Couldn't add");
+        toast.error(e instanceof Error ? e.message : "Couldn't add", { id: toastId });
       }
     },
     [router, close]

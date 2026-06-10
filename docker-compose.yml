@@ -1,8 +1,9 @@
 # Swiss Knife — local AI daily runner
-# NOTE: Ollama runs NATIVELY on the host (for Apple GPU/Metal acceleration).
-# Docker Desktop on macOS cannot pass the Apple GPU into a container, so a
-# containerized Ollama would be ~5-6x slower. These containers reach the host
-# Ollama via host.docker.internal.
+# NOTE: Ollama runs NATIVELY on the host on EVERY platform; these containers
+# reach it via host.docker.internal.
+#   macOS:   Docker can't pass the Apple GPU — containerized Ollama is ~5-6x slower.
+#   Windows: install the official Ollama Windows app (uses CUDA directly when an
+#            NVIDIA GPU is present); host.docker.internal works on Docker Desktop.
 services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
@@ -27,14 +28,25 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
       # Full Docker stack runs Open WebUI too, so default to the LIGHT model to
-      # avoid a 12B + containers nearly filling 48 GB RAM. Override per .env:
-      #   OLLAMA_MODEL=gemma4:12b-mlx  (quality). Or switch live in Settings.
+      # avoid a 12B + containers nearly filling RAM. Override per .env:
+      #   OLLAMA_MODEL=gemma4:12b-mlx  (quality — Apple Silicon ONLY, MLX)
+      #   OLLAMA_MODEL=gemma4:12b      (quality on Windows/Linux — GGUF)
+      # Or switch live in Settings.
       - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma4:e4b}
+      # Memory consolidation's quality step; on Windows/Linux set gemma4:12b.
+      - OLLAMA_QUALITY_MODEL=${OLLAMA_QUALITY_MODEL:-}
       - DATABASE_URL=file:/data/cockpit.db
+      # Calendar-day math (due dates, Today panel, routine titles) runs in this
+      # container; without TZ Node computes days in UTC, shifting them a day for
+      # any user west of UTC in the evening. ./swiss up / .\swiss up export it.
+      - TZ=${TZ:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - cockpit-data:/data
+      # Captured/vision images (lib/uploads.ts writes to <cwd>/uploads). Without
+      # this they silently vanish on every rebuild.
+      - cockpit-uploads:/app/uploads
     depends_on:
       - open-webui
     restart: unless-stopped
@@ -42,3 +54,4 @@ services:
 volumes:
   openwebui-data:
   cockpit-data:
+  cockpit-uploads:

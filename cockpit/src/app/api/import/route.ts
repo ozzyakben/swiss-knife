@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { logActivity } from "@/lib/activity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +61,7 @@ export async function POST(req: Request) {
   record("facts", await upsertAll(m.memoryFact, data.facts));
   record("bugs", await upsertAll(m.bugReport, data.bugs));
   record("goldens", await upsertAll(m.goldenCase, data.goldens));
+  record("adrs", await upsertAll(m.adr, data.adrs));
 
   let qa = 0;
   let qaFailed = 0;
@@ -87,5 +89,12 @@ export async function POST(req: Request) {
   if (qaFailed > 0) skipped.qaSessions = qaFailed;
   if (itersFailed > 0) skipped.iterations = itersFailed;
 
+  const totalOk = Object.values(imported).reduce((a, b) => a + b, 0);
+  const totalSkipped = Object.values(skipped).reduce((a, b) => a + b, 0);
+  await logActivity({
+    entity: "backup",
+    action: "imported",
+    summary: `Restored ${totalOk} records${totalSkipped ? ` (${totalSkipped} skipped)` : ""}`,
+  });
   return Response.json({ ok: true, imported, skipped });
 }

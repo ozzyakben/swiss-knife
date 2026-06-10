@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { usePersisted } from "@/hooks/usePersisted";
@@ -120,11 +120,14 @@ export function MemoryManager({
   trashed,
   projects,
   activeProjectId,
+  initialSearch = "",
 }: {
   facts: Fact[];
   trashed: TrashedFact[];
   projects: { id: string; name: string }[];
   activeProjectId: string | null;
+  /** Seed for the search box (the ⌘K search deep link: /tools/memory?q=…). */
+  initialSearch?: string;
 }) {
   const activeProjectName = projects.find((p) => p.id === activeProjectId)?.name ?? null;
   const router = useRouter();
@@ -147,7 +150,20 @@ export function MemoryManager({
     filterCategoryRaw === ALLCAT || filterCategoryRaw === UNCAT || CATEGORY_ORDER.includes(filterCategoryRaw)
       ? filterCategoryRaw
       : ALLCAT;
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
+
+  // A ⌘K deep link must actually reveal its target: useState ignores a new
+  // initialSearch once mounted, and /api/search matches facts globally, so
+  // lift the persisted project/category filters that could mask the result.
+  useEffect(() => {
+    if (!initialSearch) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- prop-driven deep-link consume
+    setSearch(initialSearch);
+    setFilterProject(ALL);
+    setFilterCategory(ALLCAT);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- usePersisted setters are not memoized
+  }, [initialSearch]);
+
   // Bulk selection — ACTIVE facts only. Accepting pending/merge facts stays a
   // per-fact human decision by design; bulk ops here are archive/trash only.
   const [selected, setSelected] = useState<Set<string>>(new Set());

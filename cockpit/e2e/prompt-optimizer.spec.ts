@@ -86,4 +86,32 @@ test.describe("prompt optimizer (mocked engine)", () => {
     await expect(page.getByText(/optimized prompt/i)).toBeVisible();
     await expect(page.getByText(/improved: do x/i)).toBeVisible();
   });
+
+  test("saves the visible result AFTER the run (no pre-commit save)", async ({ page }) => {
+    await page.route("**/api/optimize", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/plain; charset=utf-8",
+        body: "Improved: a sharp reviewed prompt.",
+      })
+    );
+    let savedBody: unknown = null;
+    await page.route("**/api/prompts", (route) => {
+      savedBody = route.request().postDataJSON();
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ prompt: { id: "p1" } }) });
+    });
+    await page.goto("/tools/prompt-optimizer");
+    await page.getByPlaceholder(/paste a rough prompt/i).fill("rough prompt");
+    // No save button before a result exists.
+    await expect(page.getByRole("button", { name: /save to library/i })).toHaveCount(0);
+    await page.getByRole("button", { name: /^optimize$/i }).click();
+    await expect(page.getByText(/sharp reviewed prompt/i)).toBeVisible();
+    await page.getByRole("button", { name: /save to library/i }).click();
+    await expect(page.getByRole("button", { name: /saved/i })).toBeVisible();
+    // What was saved is exactly what was on screen.
+    expect(savedBody).toMatchObject({
+      original: "rough prompt",
+      optimized: "Improved: a sharp reviewed prompt.",
+    });
+  });
 });

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { assertOllamaReady } from "@/lib/health";
+import { getEffectiveConfig } from "@/lib/config";
 import {
   loadProjectQaContext,
   scoreFeature,
@@ -44,7 +45,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const ctx = await loadProjectQaContext(projectId);
     if (!ctx.hasPack) return Response.json({ projectId, needsPack: true });
 
-    const notReady = await assertOllamaReady();
+    const cfg = await getEffectiveConfig();
+    const notReady = await assertOllamaReady(cfg.qaModel ?? undefined);
     if (notReady) return notReady;
 
     const rubric = await scoreFeature(it.draftFeature, projectId, ctx);

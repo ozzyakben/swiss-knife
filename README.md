@@ -1,7 +1,7 @@
 # 🔧 Swiss Knife — Local AI Daily Runner
 
-A locally-run, private "daily cockpit" powered by **local Gemma 4 12B** via Ollama.
-Two surfaces, one engine:
+A locally-run, private "daily cockpit" powered by **local Gemma 4** via Ollama
+(light `gemma4:e4b` default + a 12B quality tier). Two surfaces, one engine:
 
 - **Cockpit** (`http://localhost:3000`) — your custom Next.js app (Prompt Optimizer today; later: email writer, todo, Kanban, knowledge base).
 - **Open WebUI** (`http://localhost:3001`) — off-the-shelf chat + document RAG + prompt library + multimodal.
@@ -12,14 +12,40 @@ Everything stays on your machine. No third-party logging.
 
 ## Why Ollama runs natively (not in Docker)
 
-Docker Desktop on macOS **cannot** pass the Apple GPU into a container — even on M5.
-A containerized Ollama falls back to CPU and runs **~5–6× slower**. So Ollama runs
-natively (full Metal/GPU acceleration) and the containers reach it via
-`host.docker.internal`. This is the recommended setup for any Apple Silicon Mac.
+Ollama runs **natively on the host** on every platform; the containers reach it
+via `host.docker.internal`.
+
+- **macOS:** Docker Desktop cannot pass the Apple GPU into a container — even on
+  M5. Containerized Ollama falls back to CPU and runs **~5–6× slower**. Native =
+  full Metal acceleration.
+- **Windows:** the official Ollama Windows app uses your NVIDIA GPU (CUDA)
+  directly when present, falls back to CPU cleanly, and auto-starts with the
+  machine. Keeping it out of Docker avoids the WSL2 GPU-passthrough dance for
+  zero benefit.
 
 ---
 
-## Prerequisites (one-time, per machine)
+## Fastest path (new machine → working cockpit)
+
+```bash
+# macOS (needs Homebrew):
+git clone <repo-url> && cd swiss-knife && ./swiss setup && ./swiss up
+```
+
+```powershell
+# Windows 10/11 (PowerShell):
+git clone <repo-url>; cd swiss-knife; .\swiss setup; .\swiss up
+```
+
+`setup` installs the two prerequisites below (skipping anything already
+installed). One honest caveat on a brand-new machine: **Docker Desktop's first
+launch is interactive** (license click-through; on Windows it enables WSL2 and
+may ask to reboot) — do that once when `setup` tells you to, then `up` is fully
+hands-off, forever. `doctor` is always there if anything looks off.
+
+## Prerequisites (one-time, per machine — or just run `setup` above)
+
+**macOS (Apple Silicon)**
 
 1. **Docker Desktop** — https://www.docker.com/products/docker-desktop/
 2. **Ollama (native, the official app)** — `brew install --cask ollama-app` or https://ollama.com/download
@@ -31,35 +57,53 @@ natively (full Metal/GPU acceleration) and the containers reach it via
 > formula? `brew uninstall ollama && brew install --cask ollama-app`
 > (pulled models in `~/.ollama` are kept).
 
+**Windows 10/11**
+
+1. **Docker Desktop (WSL2 backend)** — https://www.docker.com/products/docker-desktop/
+2. **Ollama for Windows** — `winget install Ollama.Ollama` or https://ollama.com/download/windows
+3. 16 GB RAM minimum (24 GB+ to run the quality tier next to Docker); an NVIDIA
+   GPU helps a lot but isn't required — the light tier runs fine on CPU.
+
 That's all your colleagues need too.
 
 ---
 
 ## Run it (two commands, total)
 
+macOS:
+
 ```bash
 ./swiss up      # start everything
 ./swiss down    # stop the containers when you're done
 ```
 
-`up` starts the native Ollama app if needed, pulls both model tiers plus the
-embedder, then builds & launches the cockpit + Open WebUI containers.
+Windows (PowerShell or cmd, from the repo folder):
+
+```powershell
+.\swiss up      # start everything (swiss.cmd → swiss.ps1, no execution-policy fuss)
+.\swiss down    # stop the containers when you're done
+```
+
+`up` starts native Ollama if needed, pulls the model tiers plus the embedder,
+then builds & launches the cockpit + Open WebUI containers.
 Then open **http://localhost:3000**.
 
-Also there for you:
+Also there for you (same on Windows with `.\swiss`):
 
 ```bash
 ./swiss status  # one-line state of engine / cockpit / Open WebUI / Docker
 ./swiss doctor  # full preflight with fix-it commands (run this first on a new machine)
 ```
 
-> First run downloads the models (~14 GB for both tiers) and builds the cockpit
-> image, so it takes a few minutes. Subsequent runs are fast.
+> First run downloads the models (~9–14 GB depending on platform) and builds the
+> cockpit image, so it takes a few minutes. Subsequent runs are fast.
 
 > **Model note:** two chat tiers, switchable live in **Settings → Model**:
-> `gemma4:e4b` (light default, vision-capable, ~4 GB RAM) and `gemma4:12b-mlx`
-> (quality tier, Apple-Silicon MLX, 256K context, ~10–14 GB RAM, no vision).
-> Set `OLLAMA_MODEL` or use the in-app picker to switch.
+> `gemma4:e4b` (light default, vision-capable, ~4 GB RAM) everywhere, plus a
+> quality tier that differs by platform — `gemma4:12b-mlx` (Apple-Silicon MLX,
+> 256K context, no vision) on macOS, **`gemma4:12b` (GGUF)** on Windows/Linux.
+> The MLX tag will not run outside Apple Silicon. Set `OLLAMA_MODEL` or use the
+> in-app picker to switch.
 
 ---
 
@@ -80,8 +124,9 @@ Also there for you:
 - **Image** — ask local Gemma about an uploaded image (vision).
 - **Projects** — group prompts/tasks/ideas/drafts/memory by project; the sidebar's active
   project files new work automatically, and each project deep-links to its Open WebUI knowledge base.
-- **Quick capture** — a token-authed endpoint (wire a macOS Shortcut or hotkey) to file text as a
-  task, fact, prompt, or idea from any app.
+- **Quick capture** — a token-authed endpoint to file text as a task, fact, prompt, or idea
+  from any app: wire a macOS Shortcut (`scripts/sk-capture.sh`) or a Windows hotkey
+  (`scripts\sk-capture.ps1` — recipes in Settings → Quick capture).
 - **Dashboard** — entry point, recent prompts, and a live engine-health banner.
 - **Settings** — set the model, base URL, and temperature in-app.
 - **Dark mode** — light / dark / system.
@@ -92,9 +137,10 @@ Also there for you:
 ## Architecture
 
 ```
-        ┌─────────────────────────── your Mac ───────────────────────────┐
+        ┌────────────────────────── your machine ─────────────────────────┐
         │                                                                 │
-        │   Ollama (NATIVE, GPU/Metal)  ── gemma4:12b-mlx + embeddings    │
+        │   Ollama (NATIVE — Metal on macOS / CUDA-or-CPU on Windows)     │
+        │     gemma4:e4b + quality tier (12b-mlx mac · 12b win) + embed    │
         │        ▲                          ▲                             │
         │        │ host.docker.internal     │                             │
         │   ┌────┴───────┐            ┌──────┴──────┐                      │
@@ -125,16 +171,51 @@ Also there for you:
 - `WEBUI_AUTH=False` in `docker-compose.yml` is fine for single-user local use.
   Set it to `True` before exposing Open WebUI beyond localhost.
 - The whole thing is reproducible: clone the folder, install the two prerequisites,
-  run `./swiss doctor` (preflight with fix-it commands), then `./swiss up`.
+  run the doctor (`./swiss doctor` on macOS, `.\swiss doctor` on Windows), then
+  `up`.
+
+## Windows specifics & troubleshooting
+
+- **Quality tier:** use `gemma4:12b` (GGUF). `gemma4:12b-mlx` is Apple-Silicon
+  MLX and will not run on Windows — the doctor flags it if it sneaks in.
+- **Memory consolidation:** set `OLLAMA_QUALITY_MODEL=gemma4:12b` in your `.env`
+  so the memory loop's judgment step uses the GGUF build directly.
+- **Execution policy:** `.\swiss` runs through `swiss.cmd`, which bypasses the
+  policy for this script only. Running `swiss.ps1` directly may need
+  `powershell -ExecutionPolicy Bypass -File .\swiss.ps1 doctor`.
+- **Line endings (only if you cloned before `.gitattributes` existed):**
+  re-normalize once with `git rm -r --cached . ; git checkout .` — otherwise the
+  cockpit container can fail with `/bin/sh^M: bad interpreter`.
+- **Ports 3000/3001 refuse to bind:** Windows sometimes reserves them
+  (`bind: An attempt was made to access a socket...`). Check
+  `netsh interface ipv4 show excludedportrange protocol=tcp`; freeing usually
+  works with `net stop winnat && net start winnat` (admin).
+- **Voice capture** runs in local dev only (the Docker image doesn't bundle
+  ffmpeg/whisper): `winget install Gyan.FFmpeg`, grab a whisper.cpp Windows
+  release binary, and the doctor prints the model download one-liner.
+- **GPU:** nothing to configure — native Ollama accelerates on NVIDIA (CUDA)
+  and AMD Radeon (ROCm) automatically; without a supported GPU, stick to
+  `gemma4:e4b`.
+- **If `.\swiss` doesn't resolve** in your shell, use the explicit form:
+  `.\swiss.cmd up`.
 
 ## Local development (without Docker)
+
+Needs Node **22+**. First time only, create `cockpit/.env`:
+
+```
+DATABASE_URL="file:./dev.db"
+OLLAMA_BASE_URL="http://localhost:11434/v1"
+```
 
 ```bash
 cd cockpit
 npm install
+npx playwright install chromium   # one-time, for the e2e suite
 npm run db:push        # creates the SQLite schema
 npm run dev            # uses cockpit/.env (OLLAMA_*, DATABASE_URL)
 ```
 
-Quality gates: `npm run lint` and `npm run test:e2e` (Playwright tests are
-model-independent, so they pass even without Ollama running).
+Quality gates: `npm run lint`, `npm run test:unit`, and `npm run test:e2e`
+(Playwright tests are model-independent, so they pass even without Ollama
+running). `npm run clean` removes `.next` cross-platform.

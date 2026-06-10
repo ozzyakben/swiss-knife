@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { assertOllamaReady } from "@/lib/health";
+import { getEffectiveConfig } from "@/lib/config";
 import { getActiveProjectId } from "@/lib/project";
 import { loadProjectQaContext, scoreFeature } from "@/lib/qaPipeline";
 
@@ -9,7 +10,9 @@ export const dynamic = "force-dynamic";
 // Re-run the current rubric over the project's golden cases and report how often
 // it still agrees with the labeled verdict — catches rubric/model drift.
 export async function POST() {
-  const notReady = await assertOllamaReady();
+  // The bench judges on the qaModel override when set — gate on that model.
+  const cfg = await getEffectiveConfig();
+  const notReady = await assertOllamaReady(cfg.qaModel ?? undefined);
   if (notReady) return notReady;
 
   const projectId = await getActiveProjectId();

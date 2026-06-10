@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ERROR_SENTINEL } from "@/lib/ai/sentinel";
 
 export type AiToolStatus = "idle" | "streaming" | "done" | "error";
@@ -30,6 +30,17 @@ export function useAiTool({ endpoint, buildBody }: UseAiToolOptions): UseAiToolR
   const [elapsedMs, setElapsedMs] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Abort any in-flight stream when the view unmounts: navigating away used to
+  // leave the single local engine generating to completion for nobody (the
+  // server's cancel() propagation only fires on an explicit reader abort).
+  useEffect(
+    () => () => {
+      abortRef.current?.abort();
+      if (timerRef.current) clearInterval(timerRef.current);
+    },
+    []
+  );
 
   const run = useCallback(
     async (input: string, extra?: Record<string, unknown>): Promise<boolean> => {

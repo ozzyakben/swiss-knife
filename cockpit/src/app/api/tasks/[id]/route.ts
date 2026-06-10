@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { parseDueDateInput } from "@/lib/dates";
+import { logActivity } from "@/lib/activity";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,14 +25,28 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (typeof body.notes === "string") data.notes = body.notes.trim() || null;
   if (typeof body.module === "string") data.module = body.module.trim() || null;
   if (PRIORITIES.includes(body.priority ?? "")) data.priority = body.priority;
+
+  // completedAt changes only on a real status TRANSITION — bulk ops resend
+  // "done" for already-done tasks, which used to move old completions to
+  // today (and double-log activity).
+  let completedNow = false;
   if (STATUSES.includes(body.status ?? "")) {
+    const current = await prisma.task
+      .findUnique({ where: { id }, select: { status: true } })
+      .catch(() => null);
+    if (!current) return Response.json({ error: "Task not found." }, { status: 404 });
     data.status = body.status;
-    data.completedAt = body.status === "done" ? new Date() : null;
+    if (body.status === "done" && current.status !== "done") {
+      data.completedAt = new Date();
+      completedNow = true;
+    } else if (body.status !== "done" && current.status === "done") {
+      data.completedAt = null;
+    }
   }
   if (body.dueDate === null) data.dueDate = null;
   else if (typeof body.dueDate === "string") {
-    const d = new Date(body.dueDate);
-    if (Number.isNaN(d.getTime())) {
+    const d = parseDueDateInput(body.dueDate);
+    if (!d) {
       return Response.json({ error: "Invalid due date." }, { status: 400 });
     }
     data.dueDate = d;
@@ -43,6 +59,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   try {
     const task = await prisma.task.update({ where: { id }, data });
+    // "What did I do today" (Activity + wrapup) cares about real completions.
+    if (completedNow) {
+      await logActivity({ entity: "task", action: "completed", summary: task.title, projectId: task.projectId });
+    }
     return Response.json({ task });
   } catch {
     return Response.json({ error: "Task not found." }, { status: 404 });

@@ -25,8 +25,10 @@ import { FACT_CATEGORIES, normalizeCategory, type FactCategory } from "@/lib/mem
 const DEDUPE_COSINE = 0.72;
 const JACCARD_DUP = 0.8;
 // The quality tier for the judgment step. Falls back to the configured model if
-// it isn't pulled, so consolidation degrades rather than failing.
-const QUALITY_MODEL = "gemma4:12b-mlx";
+// it isn't pulled, so consolidation degrades rather than failing. Overridable
+// because the default is the MLX build (Apple Silicon only) — Windows/Linux
+// hosts set OLLAMA_QUALITY_MODEL=gemma4:12b (GGUF) to skip the doomed first try.
+const QUALITY_MODEL = process.env.OLLAMA_QUALITY_MODEL || "gemma4:12b-mlx";
 // Decay: model-suggested facts never surfaced as relevant get archived after
 // this many days. Manual, pinned, seeded (sourceKey), and used facts are spared.
 const STALE_DAYS = 30;
@@ -426,12 +428,16 @@ export async function applyMerge(proposalId: string, targetId: string, mergedVal
     const [v] = await embedDocuments([mergedValue]);
     embedding = serializeVector(v);
   } catch {
-    // Keep the old embedding; a later reindex will refresh it.
+    // Embed failure → store NULL, never keep the old vector: the fact's
+    // wording just changed, so the old embedding ranks it by its old meaning,
+    // and reindexFacts only scans embedding:null (same contract as the
+    // PATCH-edit path).
+    embedding = null;
   }
   await prisma.$transaction([
     prisma.memoryFact.update({
       where: { id: targetId },
-      data: embedding ? { value: mergedValue, embedding } : { value: mergedValue },
+      data: { value: mergedValue, embedding },
     }),
     prisma.memoryFact.delete({ where: { id: proposalId } }),
   ]);

@@ -15,9 +15,16 @@ function nativeRoot(baseUrl: string) {
   return baseUrl.replace(/\/v1\/?$/, "");
 }
 
-/** Probe the native Ollama: is it up, and is the configured model pulled? */
-export async function checkHealth(): Promise<Health> {
-  const { model, baseUrl } = await getEffectiveConfig();
+/**
+ * Probe the native Ollama: is it up, and is the model pulled? Defaults to the
+ * configured chat model; pass an override for routes that run on a DIFFERENT
+ * model (qaModel, visionModel) — a typo'd override used to pass the gate and
+ * then die mid-run with a raw engine error.
+ */
+export async function checkHealth(modelOverride?: string): Promise<Health> {
+  const cfg = await getEffectiveConfig();
+  const model = modelOverride ?? cfg.model;
+  const baseUrl = cfg.baseUrl;
   const tagsUrl = `${nativeRoot(baseUrl)}/api/tags`;
   try {
     const res = await fetch(tagsUrl, {
@@ -47,12 +54,12 @@ export async function checkHealth(): Promise<Health> {
 }
 
 /** Route guard: returns a ready-to-send 503 Response when not healthy, else null. */
-export async function assertOllamaReady(): Promise<Response | null> {
-  const h = await checkHealth();
+export async function assertOllamaReady(modelOverride?: string): Promise<Response | null> {
+  const h = await checkHealth(modelOverride);
   if (h.ok) return null;
   const msg =
     h.reason === "ollama_down"
-      ? "Ollama isn't running. Start the Ollama app (open -a Ollama) and try again."
+      ? "Ollama isn't running. Start the Ollama app (macOS: open -a Ollama · Windows: launch Ollama from the Start menu) and try again."
       : `Model "${h.model}" isn't pulled. Run: ollama pull ${h.model}`;
   return Response.json({ error: msg, reason: h.reason }, { status: 503 });
 }

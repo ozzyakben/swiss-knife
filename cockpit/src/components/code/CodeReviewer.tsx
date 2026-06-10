@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { VoiceTextarea } from "@/components/tools/VoiceTextarea";
 import { AiOutput } from "@/components/tools/AiOutput";
 import { ErrorAlert } from "@/components/ErrorAlert";
+import { BigOSection } from "@/components/code/BigOSection";
 import type { SmellResult } from "@/lib/codeSmells";
 
 export function CodeReviewer() {
@@ -95,11 +96,13 @@ export function CodeReviewer() {
       {scan && s && (
         <div className="mt-6">
           <div className="flex flex-wrap items-center gap-2">
+            {/* Three states: BLOCK (errors), PASS · N warnings, clean PASS — a
+                green "GATE PASS" above a list of warnings read contradictory. */}
             <Badge
-              variant={scan.ok ? "secondary" : "destructive"}
+              variant={!scan.ok ? "destructive" : s.warnings > 0 ? "outline" : "secondary"}
               className="shrink-0 whitespace-nowrap"
             >
-              {scan.ok ? "GATE PASS" : "GATE BLOCK"}
+              {!scan.ok ? "GATE BLOCK" : s.warnings > 0 ? `PASS · ${s.warnings} warning${s.warnings === 1 ? "" : "s"}` : "GATE PASS"}
             </Badge>
             <span className="text-sm text-muted-foreground">
               {s.errors} error{s.errors === 1 ? "" : "s"}, {s.warnings} warning
@@ -140,6 +143,10 @@ export function CodeReviewer() {
       )}
 
       <AiOutput output={output} status={status} label="Review notes" />
+
+      {/* The old standalone Complexity Analyzer, folded in as an opt-in pass
+          over the same paste — one destination for code questions. */}
+      <BigOSection code={code} disabled={busy} />
     </div>
   );
 }
