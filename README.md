@@ -190,9 +190,11 @@ Also there for you (same on Windows with `.\swiss`):
   (`bind: An attempt was made to access a socket...`). Check
   `netsh interface ipv4 show excludedportrange protocol=tcp`; freeing usually
   works with `net stop winnat && net start winnat` (admin).
-- **Voice capture** runs in local dev only (the Docker image doesn't bundle
-  ffmpeg/whisper): `winget install Gyan.FFmpeg`, grab a whisper.cpp Windows
-  release binary, and the doctor prints the model download one-liner.
+- **Voice capture** works in the Docker cockpit (the image bundles ffmpeg +
+  whisper-cli); it just needs the STT model on the host, mounted automatically
+  from `%USERPROFILE%\.cache\whisper` — `.\swiss doctor` prints the one-line
+  download if it's missing. (Local `npm run dev` instead uses host ffmpeg +
+  whisper-cli: `winget install Gyan.FFmpeg` and a whisper.cpp release binary.)
 - **GPU:** nothing to configure — native Ollama accelerates on NVIDIA (CUDA)
   and AMD Radeon (ROCm) automatically; without a supported GPU, stick to
   `gemma4:e4b`.

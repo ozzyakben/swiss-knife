@@ -120,15 +120,17 @@ cmd_doctor() {
 
   echo
   say "Voice capture (optional)"
-  if command -v "${WHISPER_BIN:-whisper-cli}" >/dev/null 2>&1 && command -v "${FFMPEG_BIN:-ffmpeg}" >/dev/null 2>&1; then
-    ok "whisper-cli + ffmpeg installed"
-  else
-    note "whisper-cli / ffmpeg missing — voice capture stays off (everything else works)" "brew install whisper-cpp ffmpeg"
-  fi
+  # The Docker cockpit bundles ffmpeg + whisper-cli and mounts the model below;
+  # host ffmpeg/whisper-cli are only needed for a local `npm run dev` run.
   if [ -f "${WHISPER_MODEL:-$HOME/.cache/whisper/ggml-base.en.bin}" ]; then
-    ok "whisper model present"
+    ok "whisper model present (mounted into the Docker cockpit for voice)"
   else
-    note "whisper model missing" "mkdir -p ~/.cache/whisper && curl -L -o ~/.cache/whisper/ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+    note "whisper model missing — voice capture stays off (everything else works)" "mkdir -p ~/.cache/whisper && curl -L -o ~/.cache/whisper/ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+  fi
+  if command -v "${WHISPER_BIN:-whisper-cli}" >/dev/null 2>&1 && command -v "${FFMPEG_BIN:-ffmpeg}" >/dev/null 2>&1; then
+    ok "host whisper-cli + ffmpeg installed (for local npm run dev)"
+  else
+    note "host whisper-cli / ffmpeg missing — only needed for local 'npm run dev'; the Docker cockpit bundles them" "brew install whisper-cpp ffmpeg"
   fi
 
   echo
@@ -228,6 +230,8 @@ cmd_up() {
     TZ="$(readlink /etc/localtime | sed 's|.*/zoneinfo/||')"
     export TZ
   fi
+  # Voice model lives on the host and is bind-mounted into the cockpit.
+  export WHISPER_MODEL_DIR="${WHISPER_MODEL_DIR:-$HOME/.cache/whisper}"
   echo "  building & starting containers…"
   docker compose up -d --build
 

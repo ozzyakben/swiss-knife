@@ -14,11 +14,11 @@ export const dynamic = "force-dynamic";
 const SPAWN_TIMEOUT_MS = 60_000;
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 
-// On-device speech-to-text. Needs whisper.cpp (whisper-cli) + ffmpeg installed
-// natively (no cloud). Binary paths and the model are configurable via env. If a
-// tool or the model is missing the route returns a 503 with the fix command, so
-// the feature is ready the moment you run `brew install whisper-cpp ffmpeg` and
-// download a model.
+// On-device speech-to-text via whisper.cpp (whisper-cli) + ffmpeg (no cloud).
+// The Docker image bundles both and mounts the model at /models (env-wired);
+// for local `npm run dev` they come from the host PATH. Binary paths + the model
+// are env-configurable; if a tool or the model is missing the route returns a
+// 503 with the platform-correct fix command.
 const WHISPER = process.env.WHISPER_BIN || "whisper-cli";
 const FFMPEG = process.env.FFMPEG_BIN || "ffmpeg";
 const WHISPER_MODEL = process.env.WHISPER_MODEL || join(homedir(), ".cache/whisper/ggml-base.en.bin");
@@ -55,9 +55,9 @@ function isMissing(e: unknown): boolean {
   return code === "ENOENT" || code === "EINVAL";
 }
 
-// Voice runs in LOCAL DEV (the Docker image doesn't bundle ffmpeg/whisper), so
-// process.platform here is the USER's real OS — platform-specific install
-// hints are correct in this route (unlike the containerized health copy).
+// These hints only reach a LOCAL `npm run dev` run (the Docker image always has
+// the binaries, so its 503 path is the missing-model one below). There,
+// process.platform is the user's real OS, so the install commands are correct.
 const IS_WIN = process.platform === "win32";
 const FFMPEG_HINT = IS_WIN
   ? "Install ffmpeg: winget install Gyan.FFmpeg — then restart the dev server."

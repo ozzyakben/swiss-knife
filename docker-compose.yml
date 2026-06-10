@@ -47,6 +47,13 @@ services:
       # Captured/vision images (lib/uploads.ts writes to <cwd>/uploads). Without
       # this they silently vanish on every rebuild.
       - cockpit-uploads:/app/uploads
+      # Voice capture: the image bundles ffmpeg + whisper-cli, but the STT model
+      # stays on the host (it's large + machine-local). Mounted read-only at the
+      # path WHISPER_MODEL points to (cockpit/Dockerfile). No model on the host →
+      # the route returns a friendly 503 with the download command. Override the
+      # host path with WHISPER_MODEL_DIR if your model lives elsewhere (the swiss
+      # CLIs export it; ${HOME} covers a direct `docker compose up` on mac/Linux).
+      - ${WHISPER_MODEL_DIR:-${HOME}/.cache/whisper}:/models:ro
     depends_on:
       - open-webui
     restart: unless-stopped

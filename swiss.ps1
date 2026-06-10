@@ -215,23 +215,24 @@ function Invoke-Doctor {
 
   Write-Host ""
   Write-Say "Voice capture (optional)"
+  # The Docker cockpit bundles ffmpeg + whisper-cli and mounts the model; host
+  # ffmpeg/whisper-cli are only needed for a local `npm run dev` run.
+  $home2 = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
+  $whisperModel = if ($env:WHISPER_MODEL) { $env:WHISPER_MODEL } else { Join-Path $home2 ".cache\whisper\ggml-base.en.bin" }
+  if ($whisperModel -and (Test-Path $whisperModel)) {
+    Write-Ok "whisper model present (mounted into the Docker cockpit for voice)"
+  } else {
+    Write-Note "whisper model missing - voice capture stays off (everything else works)" "mkdir `"$env:USERPROFILE\.cache\whisper`" -Force; curl.exe -L -o `"$env:USERPROFILE\.cache\whisper\ggml-base.en.bin`" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
+  }
   $whisperBin = if ($env:WHISPER_BIN) { $env:WHISPER_BIN } else { "whisper-cli" }
   $ffmpegBin  = if ($env:FFMPEG_BIN)  { $env:FFMPEG_BIN }  else { "ffmpeg" }
   $hasWhisper = [bool](Get-Command $whisperBin -ErrorAction SilentlyContinue)
   $hasFfmpeg  = [bool](Get-Command $ffmpegBin -ErrorAction SilentlyContinue)
   if ($hasWhisper -and $hasFfmpeg) {
-    Write-Ok "whisper-cli + ffmpeg installed"
+    Write-Ok "host whisper-cli + ffmpeg installed (for local npm run dev)"
   } else {
-    Write-Note "whisper-cli / ffmpeg missing - voice capture stays off (everything else works)" "ffmpeg: winget install Gyan.FFmpeg   whisper: grab whisper-bin-x64.zip from https://github.com/ggml-org/whisper.cpp/releases, unzip, add to PATH (the binary may be named main.exe or whisper-cli.exe; set WHISPER_BIN if so)"
+    Write-Note "host whisper-cli / ffmpeg missing - only needed for local 'npm run dev'; the Docker cockpit bundles them" "ffmpeg: winget install Gyan.FFmpeg   whisper: grab whisper-bin-x64.zip from https://github.com/ggml-org/whisper.cpp/releases, unzip, add to PATH (the binary may be named main.exe or whisper-cli.exe; set WHISPER_BIN if so)"
   }
-  $home2 = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
-  $whisperModel = if ($env:WHISPER_MODEL) { $env:WHISPER_MODEL } else { Join-Path $home2 ".cache\whisper\ggml-base.en.bin" }
-  if ($whisperModel -and (Test-Path $whisperModel)) {
-    Write-Ok "whisper model present"
-  } else {
-    Write-Note "whisper model missing" "mkdir `"$env:USERPROFILE\.cache\whisper`" -Force; curl.exe -L -o `"$env:USERPROFILE\.cache\whisper\ggml-base.en.bin`" https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin"
-  }
-  Write-Note "Note: voice transcription runs in LOCAL DEV mode (cd cockpit; npm run dev) - the Docker cockpit image doesn't bundle ffmpeg/whisper" ""
 
   Write-Host ""
   if ($script:Fails -eq 0) {
@@ -332,6 +333,12 @@ function Invoke-Up {
         $env:TZ = $iana
       }
     } catch { }
+  }
+  # Voice model lives on the host and is bind-mounted into the cockpit; ${HOME}
+  # isn't set for compose on Windows, so resolve the dir here.
+  if (-not $env:WHISPER_MODEL_DIR) {
+    $whome = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
+    $env:WHISPER_MODEL_DIR = Join-Path $whome ".cache\whisper"
   }
   Write-Host "  building & starting containers..."
   docker compose up -d --build
